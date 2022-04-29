@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="21.05.0.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>*****Test 3D hand eye calibration using a 3x3x3cm-cube</c>
+<c></c>
+<c>***make a server/client connection to get the pose in robot coordinates </c>
+<c></c>
+<c>*define ip adress of the server (roberta)</c>
+<l>ip := '192.168.70.12'</l>
+<l>port := 30002</l>
+<c></c>
+<c>*connect the client to the server</c>
+<l>Client_Connect (ip, port, Protocol, Timeout, BaseProtocol, Socket, To, recStrList)</l>
+<c></c>
+<c>***define parameters</c>
+<c></c>
+<c>*define parameters for the working area (chessboard)</c>
+<l>MinDistanceFromCameraToWorkingArea := 50</l>
+<l>MaxDistanceFromCameraToWorkingArea := 800</l>
+<c></c>
+<c>*define parameters for visualization</c>
+<l>WindowWidth := 800</l>
+<c></c>
+<c>*define the relative sampling distance for the cube model</c>
+<l>rel_sampling_distance_cube := 0.15</l>
+<c></c>
+<c>*define other parameters</c>
+<c>*Amount of different poses to use for calibration</c>
+<l>NumCalibrationPoses := 8</l>
+<c></c>
+<c></c>
+<c>*load 3D object model (cube) from file </c>
+<l>read_object_model_3d ('C:/Users/timse/Desktop/halcon-21.05.0.0-x64-win64-offline/ChessProgram/MatchingImages/ObjectModelCube.ply', 'm', [], [], CubeOM3D, Status)</l>
+<c>*Create a surface model from the 3D object to perform surface based matching</c>
+<l>create_surface_model (CubeOM3D, rel_sampling_distance_cube, 'train_3d_edges', 'true', CubeSurfaceModelID)</l>
+<c></c>
+<c>*Open the camera</c>
+<l>open_framegrabber ('Ensenso-NxLib', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'default', 'stereo', '', 0, -1, AcqHandle)</l>
+<c></c>
+<c>*create vectors to save x/y/z-coordinates of the poses in camera and robot cooridnate systems</c>
+<l>X_Camera := []</l>
+<l>Y_Camera := []</l>
+<l>Z_Camera := []</l>
+<l>X_Robot := []</l>
+<l>Y_Robot := []</l>
+<l>Z_Robot := []</l>
+<c></c>
+<l>stop()</l>
+<c></c>
+<c>*iterate through the amount of calibration poses</c>
+<l>for i := 1 to NumCalibrationPoses by 1</l>
+<c>    </c>
+<c>    *get the pose of the robot </c>
+<c>    *send the string 'requestPose' to the Server</c>
+<l>    SendText := 'requestPose@rob'</l>
+<l>    Client_Send (SendText, Socket, To, Format, SendText)</l>
+<c>    *receive the data for the x-, y-, z-coordinates of the current pose in this form: "x/y/z"</c>
+<l>    wait_seconds(1)</l>
+<l>    Client_Receive (Socket, recStrList, recStrList, Answer, hasRecString, From, To, Exception)</l>
+<c></c>
+<c>    *save each coordinate in a seperate variable</c>
+<l>    tuple_split (Answer, '/', Substrings)</l>
+<l>    tuple_number (Substrings, Coordinates)</l>
+<l>    AnswerX := Coordinates[0]</l>
+<l>    AnswerY := Coordinates[1]</l>
+<l>    AnswerZ := Coordinates[2]</l>
+<c>    </c>
+<c>    *read 3D data from each calibration pose</c>
+<l>    grab_data (Images, Regions, Contours, AcqHandle, Data)    </l>
+<c>    </c>
+<c>    *split the x,y,z parts in 3 images</c>
+<l>    decompose3 (Images, Images_x, Images_y, Images_z)</l>
+<c>    *define a threshold for the necessary space and reduce the domain</c>
+<l>    threshold (Images_z, Region, MinDistanceFromCameraToWorkingArea, MaxDistanceFromCameraToWorkingArea)</l>
+<l>    reduce_domain (Images_z, Region, Images_z)</l>
+<c></c>
+<c>    *create 3d object model of the scene</c>
+<l>    xyz_to_object_model_3d (Images_x, Images_y, Images_z, SceneOM3D)</l>
+<c>    *find the surface model of the cube in the 3d scene</c>
+<l>    find_surface_model (CubeSurfaceModelID, SceneOM3D, 0.05, 0.2, 0, 'true', ['num_matches', 'pose_ref_scoring_dist_rel', 'use_3d_edges'], [1, 0.05, 'true'], Cam_Object_Pose, Score, SurfaceMatchingResultID)</l>
+<c>    </c>
+<c>    *apply a rigid 3D transformation to visualize the 3D object in the surface plot</c>
+<l>    rigid_trans_object_model_3d (CubeOM3D, Cam_Object_Pose, CubeOM3DRigidTrans)</l>
+<c>    </c>
+<c>    ***</c>
+<l>    dev_close_window ()</l>
+<l>    dev_open_window (0, 0, WindowWidth, WindowWidth * 0.75, 'black', WindowHandle)</l>
+<c>    ***</c>
+<c>    </c>
+<c>    *Interactively display 3D object models in the scene</c>
+<l>    visualize_object_model_3d (WindowHandle, [SceneOM3D, CubeOM3DRigidTrans], [], [], ['color_attrib_0', 'lut_0', 'alpha'], ['coord_z', 'rainbow', 0.8], [], [], [], Pose3DVisualization)</l>
+<c>    </c>
+<l>    stop()</l>
+<c>    </c>
+<c>    *collect the poses for transformation later</c>
+<l>    X_Camera   := [X_Camera, Cam_Object_Pose[0]]</l>
+<l>    Y_Camera   := [Y_Camera, Cam_Object_Pose[1]]</l>
+<l>    Z_Camera   := [Z_Camera, Cam_Object_Pose[2]]</l>
+<l>    X_Robot := [X_Robot, AnswerX]</l>
+<l>    Y_Robot := [Y_Robot, AnswerY]</l>
+<l>    Z_Robot := [Z_Robot, AnswerZ] </l>
+<l>    stop()</l>
+<l>endfor</l>
+<c></c>
+<c>*Close the connection</c>
+<l>SendText := 'end'</l>
+<l>Client_Send (SendText, Socket, To, Format, SendText)</l>
+<l>Client_Stop (Socket)</l>
+<c></c>
+<c>***Compute the rigid transformation that maps the 3D points from camera coordinates to robot base coordinates</c>
+<l>vector_to_hom_mat3d ('rigid', X_Camera, Y_Camera, Z_Camera, X_Robot, Y_Robot, Z_Robot, Camera_to_Robot_TM)</l>
+<c>*Save the hand-eye calibration result. </c>
+<l>write_tuple (Camera_to_Robot_TM, './Camera_to_Robot_TM.tup')</l>
+<c></c>
+<c>***Calculate the error of the Transformation</c>
+<c>*invert transformation matrix</c>
+<l>hom_mat3d_invert (Camera_to_Robot_TM, Robot_to_Camera_TM)</l>
+<c>*Use inverted transformation matrix on robot coordinates to compare with the actual camera coordinates</c>
+<l>affine_trans_point_3d (Robot_to_Camera_TM, X_Robot, Y_Robot, Z_Robot, X_Camera_Trans, Y_Camera_Trans, Z_Camera_Trans)</l>
+<c>*calculate difference of corresponding coordinates</c>
+<l>X_diff := X_Camera_Trans - X_Camera</l>
+<l>Y_diff := Y_Camera_Trans - Y_Camera</l>
+<l>Z_diff := Z_Camera_Trans - Z_Camera</l>
+<c>*calculate the errors for each pose, the mean error and the max error</c>
+<l>PoseErr := sqrt(X_diff * X_diff + Y_diff*Y_diff + Z_diff*Z_diff)</l>
+<l>PoseErrMean := mean(PoseErr)</l>
+<l>PoseErrMax := max(PoseErr)</l>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="organize_windows">
+<interface>
+<io>
+<par name="Images" base_type="iconic" dimension="0"/>
+</io>
+<oc>
+<par name="NumImages" base_type="ctrl" dimension="0"/>
+<par name="NumChannels" base_type="ctrl" dimension="0"/>
+<par name="XPos" base_type="ctrl" dimension="0"/>
+<par name="YPos" base_type="ctrl" dimension="0"/>
+<par name="WindowHandle" base_type="ctrl" dimension="0"/>
+<par name="Channels" base_type="ctrl" dimension="0"/>
+<par name="SumChannels" base_type="ctrl" dimension="0"/>
+<par name="Index" base_type="ctrl" dimension="0"/>
+<par name="NewWindowHandle" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>NumImages := 0</l>
+<l>NumChannels := 0</l>
+<l>XPos := 0</l>
+<l>YPos := 0</l>
+<l>WindowHandle := []</l>
+<l>count_channels (Images, Channels)</l>
+<l>tuple_sum (Channels, SumChannels)</l>
+<l>tuple_length (Channels, NumImages)</l>
+<c></c>
+<c>* Open Windows for Camera1, Camera2, Y,Y,Z</c>
+<l>for Index := 0 to SumChannels - 1 by 1</l>
+<l>    dev_open_window (YPos, XPos, 320, 240, 'black', NewWindowHandle)</l>
+<l>    tuple_concat (WindowHandle, NewWindowHandle, WindowHandle)</l>
+<l>    XPos := XPos + 330</l>
+<l>    if (Index == 1)</l>
+<l>        XPos := 0</l>
+<l>        YPos := YPos + 265</l>
+<l>    endif</l>
+<l>endfor</l>
+<l>return ()</l>
+</body>
+<docu id="organize_windows">
+<parameters>
+<parameter id="Channels"/>
+<parameter id="Images"/>
+<parameter id="Index"/>
+<parameter id="NewWindowHandle"/>
+<parameter id="NumChannels"/>
+<parameter id="NumImages"/>
+<parameter id="SumChannels"/>
+<parameter id="WindowHandle"/>
+<parameter id="XPos"/>
+<parameter id="YPos"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="estimate_camera_parameters_from_object_model_3d">
+<interface>
+<ic>
+<par name="ObjectModel3D" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="CameraParam" base_type="ctrl" dimension="0"/>
+<par name="CameraPose" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c></c>
+<c>* This procedure estimates the camera parameters of a 3D sensor.</c>
+<c>* The camera parameters and the camera pose are found such that</c>
+<c>* the observed 3D points are projected onto their original 2D</c>
+<c>* image coordinates.</c>
+<c></c>
+<c>* Note that the 3D points must be distributed throughout the</c>
+<c>* relevant volume. If for example all 3D points lie on a single</c>
+<c>* plane, the calibration will be less accurate.</c>
+<c></c>
+<c>* The resulting camera parameters and pose can be used to project</c>
+<c>* matching results into the range images.</c>
+<c></c>
+<c>* Get 3D coordinates.</c>
+<l>get_object_model_3d_params (ObjectModel3D, 'point_coord_x', XCoords)</l>
+<l>get_object_model_3d_params (ObjectModel3D, 'point_coord_y', YCoords)</l>
+<l>get_object_model_3d_params (ObjectModel3D, 'point_coord_z', ZCoords)</l>
+<c>* Get 2D coordinates.</c>
+<l>get_object_model_3d_params (ObjectModel3D, 'mapping_row', Rows)</l>
+<l>get_object_model_3d_params (ObjectModel3D, 'mapping_col', Columns)</l>
+<c>* Start camera parameters.</c>
+<l>get_object_model_3d_params (ObjectModel3D, 'mapping_size', MappingSize)</l>
+<l>Width := MappingSize[0]</l>
+<l>Height := MappingSize[1]</l>
+<l>gen_cam_par_area_scan_division (0.012, 0, 5.2e-006, 5.2e-006, Width / 2, Height / 2, Width, Height, CameraParamStart)</l>
+<l>CameraPoseStart := [0,0,0,0,0,0,0]</l>
+<c>* Calibrate the sensor.</c>
+<l>create_calib_data ('calibration_object', 1, 1, CalibDataID)</l>
+<l>set_calib_data_calib_object (CalibDataID, 0, [XCoords,YCoords,ZCoords])</l>
+<l>set_calib_data_cam_param (CalibDataID, 0, 'area_scan_division', CameraParamStart)</l>
+<l>set_calib_data_observ_points (CalibDataID, 0, 0, 0, Rows, Columns, 'all', CameraPoseStart)</l>
+<l>calibrate_cameras (CalibDataID, Error)</l>
+<l>get_calib_data (CalibDataID, 'camera', 0, 'params', CameraParam)</l>
+<l>get_calib_data (CalibDataID, 'calib_obj_pose', [0,0], 'pose', CameraPose)</l>
+<l>return ()</l>
+</body>
+<docu id="estimate_camera_parameters_from_object_model_3d">
+<abstract lang="en_US">This procedure estimates the camera parameters of a 3D sensor. The camera parameters and the camera pose are found such that the observed 3D points are projected onto their original 2D image coordinates.
+
+Note that the 3D points must be distributed throughout the relevant volume. If for example all 3D points lie on a single plane, the calibration will be less accurate.
+
+The resulting camera parameters and pose can be used to project matching results into the range images.</abstract>
+<short lang="en_US">Estimate the camera parameters of a 3D sensor.</short>
+<parameters>
+<parameter id="CameraParam">
+<sem_type>campar</sem_type>
+</parameter>
+<parameter id="CameraPose">
+<sem_type>pose</sem_type>
+</parameter>
+<parameter id="ObjectModel3D">
+<default_type>integer</default_type>
+<mixed_type>false</mixed_type>
+<sem_type>object_model_3d</sem_type>
+<type_list>
+<item>integer</item>
+</type_list>
+</parameter>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Connect">
+<interface>
+<ic>
+<par name="ip" base_type="ctrl" dimension="0"/>
+<par name="port" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Protocol" base_type="ctrl" dimension="0"/>
+<par name="Timeout" base_type="ctrl" dimension="0"/>
+<par name="BaseProtocol" base_type="ctrl" dimension="0"/>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+<par name="recStrList" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* Initialize program</c>
+<l>Protocol := 'TCP4'</l>
+<l>Timeout := 1.0</l>
+<c>* Open a socket connection</c>
+<l>tuple_regexp_match (Protocol, 'TCP|HALCON', BaseProtocol)</l>
+<l>open_socket_connect (ip, port, ['protocol','timeout'], [Protocol,Timeout], Socket)</l>
+<l>recStrList := []</l>
+<l>To := []</l>
+<l>return ()</l>
+</body>
+<docu id="Client_Connect">
+<parameters>
+<parameter id="BaseProtocol"/>
+<parameter id="Protocol"/>
+<parameter id="Socket"/>
+<parameter id="Timeout"/>
+<parameter id="To"/>
+<parameter id="ip"/>
+<parameter id="port"/>
+<parameter id="recStrList"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Receive">
+<interface>
+<ic>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="recStrList_in" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="recStrList" base_type="ctrl" dimension="0"/>
+<par name="recStr" base_type="ctrl" dimension="0"/>
+<par name="hasRecString" base_type="ctrl" dimension="0"/>
+<par name="From" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+<par name="Exception" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>*receive data</c>
+<l>hasRecString := false</l>
+<l>splitStr := '\r\n'</l>
+<l>recStrList := recStrList_in</l>
+<c></c>
+<c>* try to receive a message</c>
+<l>try</l>
+<l>    receive_data (Socket, 'z', newRecStr, recStr)</l>
+<c>    * form the message that it can be used</c>
+<l>    hasRecString := [recStr[0],recStr[1]]</l>
+<l>    tuple_split (newRecStr, splitStr, newRecList)</l>
+<c>    </c>
+<l>    tuple_concat (recStrList, newRecList, recStrList)</l>
+<l>    recStr := recStrList[0]</l>
+<l>    tuple_remove(recStrList,0,recStrList)</l>
+<c>    </c>
+<l>    if(strlen(recStr) &gt; 0 )</l>
+<l>        hasRecString := true</l>
+<l>    endif</l>
+<c></c>
+<l>catch (recStr)</l>
+<l>endtry</l>
+<l>return ()</l>
+<c></c>
+</body>
+<docu id="Client_Receive">
+<parameters>
+<parameter id="Exception"/>
+<parameter id="From"/>
+<parameter id="Socket"/>
+<parameter id="To"/>
+<parameter id="hasRecString"/>
+<parameter id="recStr"/>
+<parameter id="recStrList"/>
+<parameter id="recStrList_in"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Send">
+<interface>
+<ic>
+<par name="SendText" base_type="ctrl" dimension="0"/>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Format" base_type="ctrl" dimension="0"/>
+<par name="SendTextOut" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>SendTextOut := SendText</l>
+<c>* send data</c>
+<l>if (SendTextOut != [])</l>
+<l>    Format := 'z'</l>
+<l>    SendTextOut := SendTextOut + '\r\n'</l>
+<l>    send_data (Socket, Format, SendTextOut, To)</l>
+<l>endif</l>
+<l>return ()</l>
+</body>
+<docu id="Client_Send">
+<parameters>
+<parameter id="Format"/>
+<parameter id="SendText"/>
+<parameter id="SendTextOut"/>
+<parameter id="Socket"/>
+<parameter id="To"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Stop">
+<interface>
+<ic>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<l>close_socket (Socket)</l>
+<l>return ()</l>
+</body>
+<docu id="Client_Stop">
+<parameters>
+<parameter id="Socket"/>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>

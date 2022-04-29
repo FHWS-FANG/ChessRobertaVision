@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<IOManager xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Version Label="">
+    <Info Version="IOManager V0.1.0" />
+    <Schema Version="1" />
+  </Version>
+  <WarnMultipleUsageOfInputs printWarning="false" />
+  <BusList>
+    <Bus BusDriverName="ECatIODriver" BusInstanceName="SYS-X48">
+      <IOList>
+        <DigitalIO Name="MediaFlange.Input1" Type="INPUT" Scope="USER_IO" StartBit="368" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input2" Type="INPUT" Scope="USER_IO" StartBit="369" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input3" Type="INPUT" Scope="USER_IO" StartBit="370" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input4" Type="INPUT" Scope="USER_IO" StartBit="371" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input5" Type="INPUT" Scope="USER_IO" StartBit="372" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input6" Type="INPUT" Scope="USER_IO" StartBit="373" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input7" Type="INPUT" Scope="USER_IO" StartBit="374" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Input8" Type="INPUT" Scope="USER_IO" StartBit="375" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Output1" Type="OUTPUT" Scope="USER_IO" StartBit="12728" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Output2" Type="OUTPUT" Scope="USER_IO" StartBit="12729" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Output3" Type="OUTPUT" Scope="USER_IO" StartBit="12730" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="MediaFlange.Output4" Type="OUTPUT" Scope="USER_IO" StartBit="12731" BitSize="1" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.CurrentActualValue" Type="INPUT" Scope="USER_IO" StartBit="472" BitSize="16" Signed="true">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.PositionActualValue" Type="INPUT" Scope="USER_IO" StartBit="376" BitSize="32" Signed="true">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.FollowingErrorActualValue" Type="INPUT" Scope="USER_IO" StartBit="504" BitSize="32" Signed="true">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.VelocityActualValue" Type="INPUT" Scope="USER_IO" StartBit="408" BitSize="32" Signed="true">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.ControlWord" Type="OUTPUT" Scope="USER_IO" StartBit="12744" BitSize="16" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit00_ReadyToSwitchOn" Type="INPUT" Scope="USER_IO" StartBit="488" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit01_SwitchedOn" Type="INPUT" Scope="USER_IO" StartBit="489" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit02_OperationEnabled" Type="INPUT" Scope="USER_IO" StartBit="490" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit03_MotorFailure" Type="INPUT" Scope="USER_IO" StartBit="491" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit04_VoltageEnabled" Type="INPUT" Scope="USER_IO" StartBit="492" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit05_QuickStop" Type="INPUT" Scope="USER_IO" StartBit="493" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit06_SwitchOnDisabled" Type="INPUT" Scope="USER_IO" StartBit="494" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit07_Warning" Type="INPUT" Scope="USER_IO" StartBit="495" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit10_TargetReached" Type="INPUT" Scope="USER_IO" StartBit="498" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord).</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.SWBit11_InternalLimitActive" Type="INPUT" Scope="USER_IO" StartBit="499" BitSize="1" Signed="false">
+          <Description>Specific bit of the SW (StatausWord).</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit0_IsReferenced" Type="INPUT" Scope="USER_IO" StartBit="536" BitSize="1" Signed="false">
+          <Description>Shows if the gripper is referenced.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit1_Moving" Type="INPUT" Scope="USER_IO" StartBit="537" BitSize="1" Signed="false">
+          <Description>Shows if the gripper is moving.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit2_ProgramError" Type="INPUT" Scope="USER_IO" StartBit="538" BitSize="1" Signed="false">
+          <Description>Indicates a program error.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit3_CurrentLimitation" Type="INPUT" Scope="USER_IO" StartBit="539" BitSize="1" Signed="false">
+          <Description>Initcates if the current limitation is active</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit4_Toggle" Type="INPUT" Scope="USER_IO" StartBit="540" BitSize="1" Signed="false">
+          <Description>Shows if the controller is running (alive bit)</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit5_SoftwareLimitNeg" Type="INPUT" Scope="USER_IO" StartBit="541" BitSize="1" Signed="false">
+          <Description>Shows if the outer software limit is reached.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit7_ParameterAck" Type="INPUT" Scope="USER_IO" StartBit="543" BitSize="1" Signed="false">
+          <Description>ParameterAck is used to acknowledge a handshake protokol to write parameters.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte1Bit6_SoftwareLimitPos" Type="INPUT" Scope="USER_IO" StartBit="542" BitSize="1" Signed="false">
+          <Description>Shows if the inner software limit is reached.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte2_1_ParameterID" Type="INPUT" Scope="USER_IO" StartBit="544" BitSize="4" Signed="false">
+          <Description>ExtendedDigitalInput Byte 2 Bit 0 to 3 - Used to show a parameter</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte2_2_MotionProfile" Type="INPUT" Scope="USER_IO" StartBit="548" BitSize="4" Signed="false">
+          <Description>ExtendedDigitalInput Byte 2 Bit 4 to 7 - Used to show the active motion profile</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte3Bit0_STO_1" Type="INPUT" Scope="USER_IO" StartBit="552" BitSize="1" Signed="false">
+          <Description>Shows the state of the STO 1. </Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDIByte3Bit1_STO_2" Type="INPUT" Scope="USER_IO" StartBit="553" BitSize="1" Signed="false">
+          <Description>Shows the state of the STO 2. </Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDOByte1Bit4_ToggleBit" Type="OUTPUT" Scope="USER_IO" StartBit="12764" BitSize="1" Signed="false">
+          <Description>Extends the ControlWord with additional bits. Toggle bit is used as an alive signal.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDOByte1Bit7_ParameterStrobe" Type="OUTPUT" Scope="USER_IO" StartBit="12767" BitSize="1" Signed="false">
+          <Description>Extends the ControlWord with additional bits. Parameter strobe is used to trigger a handshake protokol to write parameters.</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDOByte2_MotionProfile" Type="OUTPUT" Scope="USER_IO" StartBit="12772" BitSize="4" Signed="false">
+          <Description>ExtendedDigitalOutput Byte 2 Bit 4 to 7 - Used to trigger motion profiles</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDOByte2_ParameterID" Type="OUTPUT" Scope="USER_IO" StartBit="12768" BitSize="4" Signed="false">
+          <Description>ExtendedDigitalOutput Byte 2 Bit 0 to 3 - Used to chose a parameter</Description>
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.EDOByte3_TargetValue" Type="OUTPUT" Scope="USER_IO" StartBit="12776" BitSize="16" Signed="false">
+          <Description />
+        </DigitalIO>
+        <DigitalIO Name="ZimmerR840.HelpDI_IdValue" Type="INPUT" Scope="USER_IO" StartBit="440" BitSize="16" Signed="false">
+          <Description>These two byte are used to transmit the actual value of a specific parameter or the error value of PE, MF or EC.</Description>
+        </DigitalIO>
+      </IOList>
+    </Bus>
+  </BusList>
+</IOManager>

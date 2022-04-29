@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<blockmodel xmlns="http://www.kuka.com/appframework/api/xml/2016/1">
+    <startpoint instanceId="StartPoint_4e22872b-c6e1-4c69-8d8c-539b986f0793" xPos="651" yPos="110">
+        <connection targetId="Block_9722bd9d-5af1-4395-9403-731ff698244a"/>
+    </startpoint>
+    <block className="application.blocks.HandEyeCalibration" isTwoLineDisplayName="false" width="141" height="110" displayName="HandEyeCalibration" instanceId="Block_9722bd9d-5af1-4395-9403-731ff698244a" xPos="632" yPos="235">
+        <connection result="OK" targetId="EndPoint_4d904fed-f62a-434e-af92-3beadf7b070a"/>
+    </block>
+    <endpoint displayName="EndPoint" instanceId="EndPoint_4d904fed-f62a-434e-af92-3beadf7b070a" xPos="651" yPos="417"/>
+</blockmodel>

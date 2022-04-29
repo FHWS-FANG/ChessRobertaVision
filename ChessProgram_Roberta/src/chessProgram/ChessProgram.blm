@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<blockmodel xmlns="http://www.kuka.com/appframework/api/xml/2016/1">
+    <startpoint instanceId="StartPoint_a09efe8e-15c1-4558-a7d1-5db0ae192e3b" xPos="492" yPos="94">
+        <connection targetId="Block_e75b5692-b51c-4fee-a879-613b85ce79db"/>
+    </startpoint>
+    <block className="application.blocks.ChessProgram" isTwoLineDisplayName="false" width="141" height="110" displayName="ChessProgram" instanceId="Block_e75b5692-b51c-4fee-a879-613b85ce79db" xPos="473" yPos="216">
+        <connection result="OK" targetId="EndPoint_74e5de6a-68cc-456b-99b8-a9563b8b8802"/>
+    </block>
+    <endpoint displayName="EndPoint" instanceId="EndPoint_74e5de6a-68cc-456b-99b8-a9563b8b8802" xPos="492" yPos="388"/>
+</blockmodel>

@@ -1,0 +1,2270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="21.05.0.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>*********************************************************************</c>
+<c>*********************************************************************</c>
+<c>***************************INITIALIZATIONS***************************</c>
+<c>*********************************************************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c></c>
+<c></c>
+<c>*********************************************************************</c>
+<c>*****************************Definitions*****************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*ip address and port</c>
+<l>*ip := 'localhost'</l>
+<l>ip := '192.168.70.12'</l>
+<l>port := 30002</l>
+<c></c>
+<c>*path to the matching images</c>
+<l>path := 'C:/Users/timse/Desktop/halcon-21.05.0.0-x64-win64-offline/ChessProgram' </l>
+<c></c>
+<c></c>
+<c>*stretching factor for the chessboard ROI</c>
+<l>stretch_factor := 1.06</l>
+<l>stretch_factor_3D := 1.1</l>
+<c></c>
+<c>*define the relative sampling distance for the cube model</c>
+<l>rel_sampling_distance_cube := 0.15</l>
+<c></c>
+<c>*greediness parameter for finding the shape models</c>
+<l>greediness := 0.9</l>
+<c></c>
+<c>*list for the Min Score of every board pattern</c>
+<c>*order:                          0='A',1='H',2='1',3='corner'</c>
+<l>Min_Score_list_board_pattern := [0.75,  0.9,  0.9, 0.5]</l>
+<c></c>
+<c>*list for the Min Score of every piece </c>
+<c>*alphabetic order: 0=b, 1=B, 2=k, 3=K, 4=n, 5=N, 6=p,  7=P, 8=q, 9=Q, 10=r, 11=R</c>
+<l>Min_Score_list := [0.8, 0.7, 0.8, 0.7, 0.8, 0.7, 0.93, 0.75, 0.7, 0.75, 0.86, 0.77]</l>
+<c></c>
+<c>*define width/height of the erosion rectangle</c>
+<l>erosion_rectangle_width := 15</l>
+<c></c>
+<c>*define a domain for the whole working area</c>
+<l>threshold_working_area_min := 50</l>
+<l>threshold_working_area_max := 1000</l>
+<c></c>
+<c>*define a domain where the program looks for objects between chessboard and camera (such as a hand while the user is playing) </c>
+<l>threshold_hand_min := 50</l>
+<l>threshold_hand_max := 860</l>
+<c></c>
+<c>*define a domain where the picture of the pieces are (distance in mm from the camera)</c>
+<l>threshold_pieces_3D_min := 940</l>
+<l>threshold_pieces_3D_max := 960</l>
+<c></c>
+<c>*define a domain where the pieces are (complete 3D pieces, not only the picture)</c>
+<l>threshold_pieces_complete_3D_min := 940</l>
+<l>threshold_pieces_complete_3D_max := 970</l>
+<c></c>
+<c>*define a domain where the promotion pieces are (complete 3D pieces, not only the picture)</c>
+<l>threshold_promotion_pieces_complete_3D_min := 910</l>
+<l>threshold_promotion_pieces_complete_3D_max := 940</l>
+<c></c>
+<c>*define the distance between the camera and the center of the pieces</c>
+<l>distance_camera_pieces := 960</l>
+<c></c>
+<c>*define a intervall for the distance between A and H</c>
+<l>distance_A_H_min := 370</l>
+<l>distance_A_H_max := 420</l>
+<c></c>
+<c>*define an intervall for the angle of the corners of the chessboard </c>
+<l>angle_corner_min := 1.45</l>
+<l>angle_corner_max := 1.7</l>
+<c></c>
+<c>*parameter for finding a surface model in 3D</c>
+<l>find_3D_model_rel_sampling_distance := 0.05</l>
+<l>find_3D_model_key_point_fraction := 0.2</l>
+<c></c>
+<c>*seconds to wait after the program sends a boardconfiguration, so it is not sending continiously</c>
+<l>wait_seconds := 1.5</l>
+<c></c>
+<c>*********************************************************************</c>
+<c>*****************************Connections*****************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*get a connection to the server</c>
+<l>Client_Connect (ip, port, Protocol, Timeout, BaseProtocol, Socket, recStrList, To)</l>
+<c></c>
+<c>*get a connection to the camera</c>
+<l>open_framegrabber ('Ensenso-NxLib', 0, 0, 0, 0, 0, 0, 'default', -1, 'default', -1, 'default', 'stereo', '', 0, -1, AcqHandle)</l>
+<c></c>
+<c>*********************************************************************</c>
+<c>****************************Create Models****************************</c>
+<c>*********************************************************************</c>
+<c>               </c>
+<c>*read a 3D object from a file (cube (chess pieces), which will be looked for)</c>
+<l>read_object_model_3d (path + '/MatchingImages/ObjectModelCube.ply', 'm', [], [], CubeOM3D, Status)</l>
+<c>*create a model from the 3D object to perform surface based matching</c>
+<l>create_surface_model (CubeOM3D, rel_sampling_distance_cube, ['train_3d_edges','train_view_based'], [true, true], SurfaceModelID)</l>
+<c></c>
+<c>*create shape models for the board patterns:</c>
+<c>*read an image of the chessboard</c>
+<l>read_image (MatchingBoardPattern, path + '/MatchingImages/MatchingBoardPattern.hobj')</l>
+<c>*add ROI´s for board patterns</c>
+<c>*order: 0 = 'A', 1 = 'H', 2 = '1', 3 = 'corner'</c>
+<l>ROI_vec_board_pattern := {}</l>
+<l>gen_rectangle1 (ROI_vec_board_pattern.at(0), 542.228, 449.007, 557.066, 462.893)</l>
+<l>gen_rectangle1 (ROI_vec_board_pattern.at(1), 548.23, 846.933, 563.69, 861.073)</l>
+<l>gen_rectangle1 (ROI_vec_board_pattern.at(2), 501.078, 412.206, 516.134, 428.541)</l>
+<l>gen_rectangle1 (ROI_vec_board_pattern.at(3), 541.205, 413.262, 553.875, 426.149)</l>
+<c>*reduce domain for every board pattern and store in vector ROI_vec_board_pattern_reduced</c>
+<l>ROI_vec_board_pattern_reduced := {}</l>
+<l>for i := 0 to (ROI_vec_board_pattern.length() - 1) by 1</l>
+<l>    reduce_domain(MatchingBoardPattern, ROI_vec_board_pattern.at(i), ROI_vec_board_pattern_reduced.at(i))</l>
+<l>endfor</l>
+<c>*creating a shape model for every board pattern</c>
+<l>shape_model_ID_board_pattern_vec := {}</l>
+<l>for i := 0 to (ROI_vec_board_pattern_reduced.length() - 1) by 1</l>
+<l>    create_shape_model (ROI_vec_board_pattern_reduced.at(i), 'auto', 0, rad(360), 'auto', 'auto', 'use_polarity', 'auto', 'auto', shape_model_ID_board_pattern_vec.at(i))</l>
+<l>endfor</l>
+<c></c>
+<c>*create for every piece 9 different shape models:</c>
+<c>*list all images from the given path </c>
+<l>list_image_files (path + '/MatchingImages/MatchingPieces', 'hobj', [], MatchingPieces)</l>
+<c>*read all images for matching the pieces (12 different pieces times 9 images each = 108)</c>
+<l>Match_Image_vec := {}</l>
+<l>for i := 0 to |MatchingPieces| - 1 by 1</l>
+<l>    read_image (Match_Image_vec.at(i), MatchingPieces[i])</l>
+<l>endfor</l>
+<c></c>
+<c>*generate ROI for each matching image</c>
+<l>gen_ROI_for_every_piece (ROI_Match_Image_vec)</l>
+<c>*reduce the domain to create a shape model for each matching image</c>
+<l>Match_Image_reduced_vec := {}</l>
+<l>shape_models := {}</l>
+<l>for i := 0 to Match_Image_vec.length() - 1 by 1</l>
+<c>    *reduce the domain to create the shape models</c>
+<l>    reduce_domain (Match_Image_vec.at(i), ROI_Match_Image_vec.at(i), Match_Image_reduced_vec.at(i))</l>
+<c>    *create the shape model for each of the nine positions for each piece</c>
+<l>    create_shape_model (Match_Image_reduced_vec.at(i), 'auto', 0, rad(360), 'auto', 'auto', 'use_polarity', 'auto', 'auto', shape_models.at(i))</l>
+<l>endfor</l>
+<c></c>
+<c>*********************************************************************</c>
+<c>***************************Image Analysis****************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*get images and analyze them until halcon detects the chess start position, including finding all 32 pieces in 2D and 3D</c>
+<l>hasStartPosition := false</l>
+<l>while(not hasStartPosition)</l>
+<c>    *get a 2D and 3D image without a hand between the camera and the chessboard </c>
+<l>    get_images_2D_3D (test_Image, test_Image_3D, AcqHandle, threshold_hand_min, threshold_hand_max)</l>
+<c>    </c>
+<c>    *find 'A', 'H' and '1' and save their coordinates</c>
+<l>    find_shape_model (test_Image, shape_model_ID_board_pattern_vec.at(0), 0, rad(360), Min_Score_list_board_pattern[0], 0, 0, 'interpolation', 0, greediness, Row_A, Column_A, Angle_A, Score_A)</l>
+<l>    find_shape_model (test_Image, shape_model_ID_board_pattern_vec.at(1), 0, rad(360), Min_Score_list_board_pattern[1], 0, 0, 'interpolation', 0, greediness, Row_H, Column_H, Angle_H, Score_H)</l>
+<l>    find_shape_model (test_Image, shape_model_ID_board_pattern_vec.at(2), 0, rad(360), Min_Score_list_board_pattern[2], 0, 0, 'interpolation', 0, greediness, Row_1, Column_1, Angle_1, Score_1)</l>
+<c>    *visualize the matches (only for debugging purposes)</c>
+<l>    dev_display(test_Image)</l>
+<l>    dev_display_shape_matching_results (shape_model_ID_board_pattern_vec.at(0), 'red', Row_A, Column_A, Angle_A, 1, 1, 0)</l>
+<l>    dev_display_shape_matching_results (shape_model_ID_board_pattern_vec.at(1), 'red', Row_H, Column_H, Angle_H, 1, 1, 0)</l>
+<l>    dev_display_shape_matching_results (shape_model_ID_board_pattern_vec.at(2), 'red', Row_1, Column_1, Angle_1, 1, 1, 0)</l>
+<c>    </c>
+<c>    *in case the amount of 'A', 'H' and '1'´s found is not correct send an error message to python   </c>
+<c>    *'1':</c>
+<l>    if (|Row_1| == 0 or |Row_1| &gt; 2)</l>
+<l>        tuple_string (|Row_1|, 'i', amount_of_1)</l>
+<l>        sendString := '1_' + amount_of_1 + '@pyt'</l>
+<l>        Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>        error_1 := true</l>
+<l>    else</l>
+<l>        error_1 := false</l>
+<l>    endif</l>
+<c>    *'A':</c>
+<l>    if (|Row_A| == 0 or |Row_A| &gt; 2)</l>
+<l>        tuple_string (|Row_A|, 'i', amount_of_A)</l>
+<l>        sendString := 'A_' + amount_of_A + '@pyt'</l>
+<l>        Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>        error_A := true</l>
+<l>    else</l>
+<l>        error_A := false</l>
+<l>    endif</l>
+<c>    *'H':</c>
+<l>    if (|Row_H| == 0 or |Row_H| &gt; 2)</l>
+<l>        tuple_string (|Row_H|, 'i', amount_of_H)</l>
+<l>        sendString := 'H_' + amount_of_H + '@pyt'</l>
+<l>        Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>        error_H := true</l>
+<l>    else</l>
+<l>        error_H := false</l>
+<l>    endif</l>
+<c>    </c>
+<c>    *if one of the three has an error get a new image</c>
+<l>    if(error_1 or error_A or error_H)</l>
+<l>        error := true</l>
+<l>    else</l>
+<l>        error := false</l>
+<l>    endif</l>
+<c>    </c>
+<l>    if (not error)</l>
+<c>        *get the angle of the chessboard by taking the angle of the found 'A'</c>
+<l>        Angle_chessboard := Angle_A[0]</l>
+<c>        </c>
+<c>        *Get coordinates of 'A', 'H' and '1' and calculate coordinates of 'A1'</c>
+<c>        *get the coordinates of the bottom left '1', bottom left 'A' and bottom right 'H'</c>
+<l>        get_coordinates_A_H_1 (Row_1, Column_1, Row_A, Column_A, Row_H, Column_H, r1, c1, rA, cA, rH, cH)</l>
+<c>        </c>
+<c>        *get the coordinates of the field 'A1'</c>
+<l>        get_coordinates_A1 (cA, c1, r1, rA, rH, cH, rA1, cA1)</l>
+<c>        </c>
+<c>        *get the distance between 'A' (bottom) and 'H' (bottom)</c>
+<l>        distance_pp (rA, cA, rH, cH, distance_A_H)</l>
+<c>        *get the length of a single field</c>
+<l>        Distance_Field_Avg := distance_A_H / 7</l>
+<c>        </c>
+<c>        *test if the distance is in the correct range (with tolerance)</c>
+<l>        if(distance_A_H &lt; distance_A_H_min or distance_A_H &gt; distance_A_H_max)</l>
+<l>            sendString := 'distance_A_H_is_out_of_range' + '@pyt'</l>
+<l>            Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>            error := true</l>
+<l>        endif</l>
+<c>        </c>
+<c>        *generate a ROI around the chessboard where the pieces are looked for</c>
+<c>        *find all 4 stars in the corner of the chessboard, define a rectangle, using the stars as edges, and use it to search pieces within the chessboard region </c>
+<l>        find_shape_model (test_Image, shape_model_ID_board_pattern_vec.at(shape_model_ID_board_pattern_vec.length()-1), 0, rad(360), Min_Score_list_board_pattern[3], 4, 0, 'interpolation', 0, greediness, Row_corner, Column_corner, Angle_corner, Score_corner)</l>
+<l>        dev_display_shape_matching_results (shape_model_ID_board_pattern_vec.at(3), 'red', Row_corner, Column_corner, Angle_corner, 1, 1, 0)</l>
+<c>    </c>
+<c>        *generate rectangle with the 4 corners and stretch it, so the whole board is covered</c>
+<l>        gen_stretched_region_polygon_filled (test_Image, ROI_chessboard, Image_chessboard, Row_corner, Column_corner, stretch_factor, Row_corner_stretched_new, Column_corner_stretched_new)</l>
+<c>        </c>
+<c>        *test if the 4 corner stars are found correctly by checking if they build a square (with tolerance)</c>
+<l>        error_corner := false</l>
+<l>        for i := 0 to 3 by 1</l>
+<l>            j := (i + 1) % 4</l>
+<l>            k := (i + 2) % 4</l>
+<c>            *calculate the angle between the sides of the chessboard</c>
+<l>            angle_ll (Row_corner_stretched_new[i], Column_corner_stretched_new[i], Row_corner_stretched_new[j], Column_corner_stretched_new[j], Row_corner_stretched_new[j], Column_corner_stretched_new[j], Row_corner_stretched_new[k], Column_corner_stretched_new[k], Angle_chessboard_corner)</l>
+<l>            tuple_abs (Angle_chessboard_corner, Angle_chessboard_corner)          </l>
+<c>            *check if the angle is about 90 degrees (in rad)</c>
+<l>            if(Angle_chessboard_corner &lt; angle_corner_min or Angle_chessboard_corner &gt; angle_corner_max)</l>
+<l>                error_corner := true</l>
+<l>                error := true</l>
+<l>            endif</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *send an error message to python if the corners are not found correctly </c>
+<l>        if(error_corner)</l>
+<l>            sendString := 'corners_not_found_correctly' + '@pyt'</l>
+<l>            Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>        endif</l>
+<l>    endif</l>
+<c>    </c>
+<l>    if (not error)    </l>
+<c>        *Find all the shape models in the image (Image_Chessboard) and save the best ones</c>
+<c>        *Double-Vectors to store row, column, angle and score for each piece and for each matching image </c>
+<l>        Row := {{}}</l>
+<l>        Column := {{}}</l>
+<l>        Angle := {{}}</l>
+<l>        Score := {{}}</l>
+<l>        for i := 0 to (shape_models.length()/18 - 1) by 1</l>
+<l>            for j := 0 to (shape_models.length()/12 - 1) by 1</l>
+<l>                find_shape_model (Image_chessboard, shape_models.at(18*i+j), 0, rad(360), Min_Score_list[i], 0, 0, 'interpolation', 0, greediness, Row.at(i).at(j), Column.at(i).at(j), Angle.at(i).at(j), Score.at(i).at(j))</l>
+<l>            endfor</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *get the best scoring matching result for each found piece</c>
+<l>        get_best_scoring_indices (Row, Column, Score, winner_list)</l>
+<c>        </c>
+<c>        *visualize the matches (only for debugging purposes)</c>
+<l>        dev_display(test_Image)</l>
+<l>        for i := 0 to winner_list.length() - 1 by 1</l>
+<l>            for j := 0 to winner_list.at(i).length() - 1 by 1</l>
+<l>                index1 := winner_list.at(i).at(j)[0]</l>
+<l>                index2 := winner_list.at(i).at(j)[1]</l>
+<l>                dev_display_shape_matching_results (shape_models.at(18*i+index1), 'red', Row.at(i).at(index1)[index2], Column.at(i).at(index1)[index2], Angle.at(i).at(index1)[index2], 1, 1, 0)</l>
+<l>            endfor</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *generate the board cofiguration as well as the piece placement part of the FEN (called FEN_part1)</c>
+<l>        gen_boardConfig (distance_A_H, Distance_Field_Avg, winner_list, Row, Column, rA1, cA1, rA, cA, rH, cH, BoardConfig, FEN_part1)</l>
+<c>    </c>
+<l>        if(FEN_part1 == 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR')</l>
+<c>            *update the variable to get out of the loop</c>
+<l>            hasStartPosition := true</l>
+<l>            error := false</l>
+<l>        else</l>
+<l>            sendString := 'no_start_position' + '@pyt'</l>
+<l>            Client_Send (sendString, Socket, To, Format, SendText)</l>
+<c>            *wait some time to not send continiously and give the player time to rearrange the pieces</c>
+<l>            wait_seconds(wait_seconds)</l>
+<l>            error := true</l>
+<l>        endif</l>
+<l>    endif</l>
+<c>    </c>
+<c>*********************************************************************</c>
+<c>************************Transformation Matrix************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<l>    if (not error)</l>
+<c>        *create a transformation matrix between the coordinates of the 2D image (only using the left camera) and the 3D coordinates (using both cameras) / Name: TransformationMatrix_2D_3D</c>
+<c>        </c>
+<c>        *split the x,y,z parts in 3 images</c>
+<l>        decompose3 (test_Image_3D, test_Image_3D_x, test_Image_3D_y, test_Image_3D_z)</l>
+<c>        </c>
+<c>        *create a new ROI_chessboard for 3D using a larger stretch factor, because of the shift between 2D and 3D images</c>
+<l>        gen_stretched_region_polygon_filled (test_Image, ROI_chessboard_3D, Image_chessboard_3D, Row_corner, Column_corner, stretch_factor_3D, Row_corner_stretched_new_3D, Column_corner_stretched_new_3D)</l>
+<c>        </c>
+<c>        *reduce the domain of the z-coordinate to the chessboard</c>
+<l>        reduce_domain (test_Image_3D_z, ROI_chessboard_3D, test_Image_3D_z_reduced)</l>
+<c>        </c>
+<c>        *get the row and column coordinate of each piece found in the 3D image and save them in lists</c>
+<c>        *set a threshold for the pieces </c>
+<l>        threshold (test_Image_3D_z_reduced, Region_pieces_3D, threshold_pieces_3D_min, threshold_pieces_3D_max)</l>
+<c>        *make the regions smaller by cutting off the edges</c>
+<l>        erosion_rectangle1 (Region_pieces_3D, Region_pieces_3D_erosion, erosion_rectangle_width, erosion_rectangle_width)</l>
+<c>        *seperate the region with the pieces into several regions with only one piece each</c>
+<l>        connection (Region_pieces_3D_erosion, Region_pieces_3D_seperate)</l>
+<c>        *get the area and the center of each region</c>
+<l>        area_center (Region_pieces_3D_seperate, Area, list_row_3D, list_column_3D)</l>
+<c>        </c>
+<c>        *save the row and column coordinates of the "winning" pieces in a list (2D)</c>
+<l>        list_row_2D := []</l>
+<l>        list_column_2D := []</l>
+<l>        for i := 0 to winner_list.length() - 1 by 1</l>
+<l>            for j := 0 to winner_list.at(i).length() - 1 by 1</l>
+<c>                *define indices to get the correct coordinates</c>
+<l>                index1 := winner_list.at(i).at(j)[0]</l>
+<l>                index2 := winner_list.at(i).at(j)[1]</l>
+<c>                *append the coordinates to the lists</c>
+<l>                list_row_2D := [list_row_2D, Row.at(i).at(index1)[index2]]</l>
+<l>                list_column_2D := [list_column_2D, Column.at(i).at(index1)[index2]]</l>
+<l>            endfor</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *check if the same amount of 2D and 3D data is accessible, if not send a message to python</c>
+<l>        if (|list_row_2D| &lt; |list_row_3D|)</l>
+<l>            sendString := 'not_enough_pieces' + '@pyt'</l>
+<l>            Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>            hasStartPosition := false</l>
+<l>            error := true</l>
+<l>        elseif(|list_row_2D| &gt; |list_row_3D|)</l>
+<l>            sendString := 'too_many_pieces' + '@pyt'</l>
+<l>            Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>            hasStartPosition := false</l>
+<l>            error := true</l>
+<l>        endif</l>
+<l>    endif</l>
+<c>    </c>
+<l>    if(not error)</l>
+<c>        *sort all 2D matches and 3D matches, so they match each other (e.g. 2D matches start from a8 to h8, a7 to h7, a2 to h2 and a1 to h1. The 3D matches need to be in the same order to calculate a Transformation matrix between these coordinate systems)</c>
+<c>        *2D</c>
+<l>        X_2D := []</l>
+<l>        Y_2D := []</l>
+<c>        *generate indices sequence to sort the matches</c>
+<l>        gen_indices_sequence_to_sort_matches (list_row_2D, list_column_2D, Angle_chessboard, list_indices_2D)</l>
+<l>        for i := 0 to |list_indices_2D| - 1 by 1</l>
+<c>            *append the coordinates to the lists</c>
+<l>            X_2D := [X_2D, list_row_2D[list_indices_2D[i]]]</l>
+<l>            Y_2D := [Y_2D, list_column_2D[list_indices_2D[i]]]</l>
+<l>        endfor</l>
+<c>        *3D</c>
+<l>        X_3D := []</l>
+<l>        Y_3D := []</l>
+<c>        *generate indices sequence to sort the matches</c>
+<l>        gen_indices_sequence_to_sort_matches (list_row_3D, list_column_3D, Angle_chessboard, list_indices_3D)</l>
+<l>        for i := 0 to |list_indices_3D| - 1 by 1</l>
+<c>            *append the coordinates to the lists</c>
+<l>            X_3D := [X_3D, list_row_3D[list_indices_3D[i]]]</l>
+<l>            Y_3D := [Y_3D, list_column_3D[list_indices_3D[i]]]</l>
+<l>        endfor</l>
+<l>    endif</l>
+<l>endwhile</l>
+<c></c>
+<c>*Calculate the Transformation Matrix with the data</c>
+<l>vector_to_hom_mat2d (X_2D, Y_2D, X_3D, Y_3D, TransformationMatrix_2D_3D)</l>
+<c>*create a matrix in halcon terms (to calculate with it)</c>
+<l>h := []</l>
+<l>for i := 0 to 5 by 1</l>
+<l>    h := [h, TransformationMatrix_2D_3D[i]]</l>
+<l>endfor</l>
+<l>h := [h, 0, 0, 1]</l>
+<l>create_matrix (3, 3, h, TransformationMatrix_2D_3D_ID)</l>
+<c></c>
+<c>*create a transformation matrix between the coordinates of the 3D image and the respective transX and transY coordinate of the pose of a piece / Name: TransformationMatrix_coordinate_pose</c>
+<l>list_coordinates_3D_X := []</l>
+<l>list_coordinates_3D_Y := []</l>
+<l>list_pose_X := []</l>
+<l>list_pose_Y := []</l>
+<c>*loop over all fields with pieces in the start position (a1...h1, a2...h2, a7...h7, a8...h8) and save the coordinates in lists</c>
+<l>for j := 0 to 3 by 1</l>
+<l>    for i := 0 to 7 by 1</l>
+<c>        *convert j=0,1,2,3 to 1,2,7,8</c>
+<l>        j_converted := j + 1</l>
+<l>        if (j &lt; 2)</l>
+<l>            j_converted := j + 1</l>
+<l>        else</l>
+<l>            j_converted := j + 5</l>
+<l>        endif</l>
+<c>        *convert i=0,...,7 to a,...,h</c>
+<l>        tuple_string (i, 'i', i_string)</l>
+<l>        tuple_ord (i_string, i_ord)</l>
+<l>        tuple_chrt (i_ord + 49, i_converted)</l>
+<c>        *get the field which will be looked for </c>
+<l>        field := i_converted + j_converted</l>
+<c>        *get coordinates_3D (transformed 2D coordinates) and the Pose of the cube for each field</c>
+<l>        get_piece_pose (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z, field, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, TransformationMatrix_2D_3D_ID, SurfaceModelID, threshold_working_area_min, threshold_working_area_max, threshold_pieces_complete_3D_min, threshold_pieces_complete_3D_max, find_3D_model_rel_sampling_distance, find_3D_model_key_point_fraction, Pose, coordinates_3D_X, coordinates_3D_Y)</l>
+<c>        *save the x and y component of the coordinates in lists</c>
+<l>        list_coordinates_3D_X := [list_coordinates_3D_X, coordinates_3D_X]</l>
+<l>        list_coordinates_3D_Y := [list_coordinates_3D_Y, coordinates_3D_Y]</l>
+<c>        *save the transX and transY component of the pose in lists</c>
+<l>        list_pose_X := [list_pose_X, Pose[0]]</l>
+<l>        list_pose_Y := [list_pose_Y, Pose[1]]</l>
+<l>    endfor</l>
+<l>endfor</l>
+<c></c>
+<c>*Calculate the Transformation Matrix with the data</c>
+<l>vector_to_hom_mat2d (list_coordinates_3D_X, list_coordinates_3D_Y, list_pose_X, list_pose_Y, TransformationMatrix_coordinate_pose)</l>
+<c>*create a matrix in halcon terms (to calculate with it)</c>
+<l>h := []</l>
+<l>for i := 0 to 5 by 1</l>
+<l>    h := [h, TransformationMatrix_coordinate_pose[i]]</l>
+<l>endfor</l>
+<l>h := [h, 0, 0, 1]</l>
+<l>create_matrix (3, 3, h, TransformationMatrix_coordinate_pose_ID)</l>
+<c></c>
+<c>*read the Transformation Matrix between the robot coordinate system and the camera coordinate system from a file (matrix was calculated in a different code)</c>
+<l>read_tuple (path + '/Camera_to_Robot_TM.tup', TransformationMatrix_camera_robot)</l>
+<c>*create a matrix in halcon terms (to calculate with it)</c>
+<l>h := []</l>
+<l>for i := 0 to 11 by 1</l>
+<l>    h := [h, TransformationMatrix_camera_robot[i]]</l>
+<l>endfor</l>
+<l>h := [h, 0, 0, 0, 1]</l>
+<l>create_matrix (4, 4, h, TransformationMatrix_camera_robot_ID)</l>
+<c></c>
+<c></c>
+<c></c>
+<c>*********************************************************************</c>
+<c>*********************************************************************</c>
+<c>**********************Communication with Python**********************</c>
+<c>*********************************************************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*send FEN_part1 and the mean Angle to python</c>
+<l>sendString := FEN_part1 + '$' + Angle_chessboard + '@pyt'</l>
+<l>Client_Send (sendString, Socket, To, Format, SendText)</l>
+<c></c>
+<c>*create a 'new' FEN by copying the old (to compare the FEN's so we don´t send the same FEN multiple times)</c>
+<l>FEN_part1_new := FEN_part1</l>
+<c></c>
+<c>*variable if the whole program is running</c>
+<l>progRunning := true</l>
+<c></c>
+<c>*main program which will always wait to receive a string by python and handle it depending on the string. If the program gets "kill", then it shuts down.</c>
+<l>while(progRunning)</l>
+<c>    *initialize counter variable (to get rid of a strange and uncommon bug)</c>
+<l>    counter := 0</l>
+<c>    *try to receive a string from python</c>
+<l>    Client_Receive (Socket, recStrList, recStrList, recString, hasRecString, From, To, Exception)</l>
+<c>    *test if a string was received, otherwise start over with receiving a string</c>
+<l>    if(hasRecString)</l>
+<c>        *case distinction:</c>
+<c>        *1) Python needs the current board configuration </c>
+<c>        *2) Python needs the pose of a piece on a particular field</c>
+<c>        *3) Python needs the pose of an empty field </c>
+<c>        *4) Python gets "kill", so the program gets shut down</c>
+<c>        </c>
+<c>        *case 1)</c>
+<l>        if(recString == 'boardConfig')</l>
+<c>            </c>
+<l>            hasNewBoardConfig := false</l>
+<l>            while(not hasNewBoardConfig)</l>
+<c>                *count the loops</c>
+<l>                counter := counter + 1</l>
+<c>                </c>
+<c>                *get a new 2D and 3D image without a hand between the camera and the chessboard </c>
+<l>                get_images_2D_3D (test_Image, test_Image_3D, AcqHandle, threshold_hand_min, threshold_hand_max)</l>
+<c>                </c>
+<c>                *include a try/catch in case the image is completeley black</c>
+<l>                try</l>
+<c>                    * find all 4 stars in the corner of the chessboard, define a rectangle, using the stars as edges, and use it to search pieces within the chessboard region </c>
+<l>                    find_shape_model (test_Image, shape_model_ID_board_pattern_vec.at(shape_model_ID_board_pattern_vec.length()-1), 0, rad(360), Min_Score_list_board_pattern[3], 4, 0, 'interpolation', 0, greediness, Row_corner, Column_corner, Angle_corner, Score_corner)</l>
+<c>                    *generate rectangle with the 4 corners and stretch it, so the whole board is covered</c>
+<l>                    gen_stretched_region_polygon_filled (test_Image, ROI_chessboard, Image_chessboard, Row_corner, Column_corner, stretch_factor, Row_corner_stretched_new, Column_corner_stretched_new)</l>
+<c>                    </c>
+<c>                    *test if the 4 corner stars are found correctly by checking if they build a square (with tolerance)</c>
+<l>                    error_corner := false</l>
+<l>                    for i := 0 to 3 by 1</l>
+<l>                        j := (i + 1) % 4</l>
+<l>                        k := (i + 2) % 4</l>
+<c>                        *calculate the angle between the sides of the chessboard</c>
+<l>                        angle_ll (Row_corner_stretched_new[i], Column_corner_stretched_new[i], Row_corner_stretched_new[j], Column_corner_stretched_new[j], Row_corner_stretched_new[j], Column_corner_stretched_new[j], Row_corner_stretched_new[k], Column_corner_stretched_new[k], Angle_chessboard_corner)</l>
+<l>                        tuple_abs (Angle_chessboard_corner, Angle_chessboard_corner)</l>
+<c>                        *check if the angle is about 90 degrees (in rad)</c>
+<l>                        if(Angle_chessboard_corner &lt; angle_corner_min or Angle_chessboard_corner &gt; angle_corner_max)</l>
+<l>                            error_corner := true</l>
+<l>                        endif</l>
+<l>                    endfor</l>
+<c>                    </c>
+<c>                    *Find all the shape models in the image and save the best ones</c>
+<c>                    *Double-Vectors to store row, column, angle and score for each piece and for each matching image </c>
+<l>                    Row := {{}}</l>
+<l>                    Column := {{}}</l>
+<l>                    Angle := {{}}</l>
+<l>                    Score := {{}}</l>
+<l>                    for i := 0 to (shape_models.length()/18 - 1) by 1</l>
+<l>                        for j := 0 to (shape_models.length()/12 - 1) by 1</l>
+<l>                            find_shape_model (Image_chessboard, shape_models.at(18*i+j), 0, rad(360), Min_Score_list[i], 0, 0, 'interpolation', 0, greediness, Row.at(i).at(j), Column.at(i).at(j), Angle.at(i).at(j), Score.at(i).at(j))</l>
+<l>                        endfor</l>
+<l>                    endfor</l>
+<c>                    *get the best scoring matching result for each found piece</c>
+<l>                    get_best_scoring_indices (Row, Column, Score, winner_list)</l>
+<c>                    </c>
+<c>                    *generate the board cofiguration as well as the piece placement part of the FEN </c>
+<l>                    gen_boardConfig (distance_A_H, Distance_Field_Avg, winner_list, Row, Column, rA1, cA1, rA, cA, rH, cH, BoardConfig, FEN_part1_newest)</l>
+<c>                    </c>
+<c>                    *only send new FEN if it changed to the old one</c>
+<l>                    if((FEN_part1_newest != FEN_part1 and FEN_part1_newest != FEN_part1_new and not error_corner) or (counter &gt; 10 and not error_corner))</l>
+<c>                        *send FEN_part1 to python</c>
+<l>                        sendString := FEN_part1_newest + '@pyt'</l>
+<l>                        Client_Send (sendString, Socket, To, Format, SendText)</l>
+<c>                        </c>
+<c>                        *make the old FEN the new one for the next loop</c>
+<l>                        FEN_part1 := FEN_part1_new</l>
+<l>                        FEN_part1_new := FEN_part1_newest</l>
+<c>                        </c>
+<c>                        *update the variable to get out of the loop</c>
+<l>                        hasNewBoardConfig := true</l>
+<c>                        </c>
+<c>                        *wait some time so it is not sending continuously</c>
+<l>                        wait_seconds(wait_seconds)</l>
+<l>                    endif</l>
+<l>                catch (Exception)</l>
+<c>                    *send to python if we get an exception to get a new boardConfig command from python (the send string need a "k" or "K" or both in its string or the player is treated in such a way that he resigns in python, so the choosen string is "wrecked_image")</c>
+<l>                    sendString := 'wrecked_image' + '@pyt'</l>
+<l>                    Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>                endtry</l>
+<l>            endwhile </l>
+<l>        endif</l>
+<c>        </c>
+<c>        *case 2)</c>
+<c>        *start with a try-block in case the received string is not long enough to be able to get a substring of this length</c>
+<l>        try</l>
+<c>            *get a substring from the received string to exclude the particular field which will be looked for (so the string consist only of "get_pose_")</c>
+<l>            tuple_substr (recString, 0, 8, recString_get_pose)</l>
+<c>            </c>
+<l>            if(recString_get_pose == 'get_pose_')</l>
+<c>                </c>
+<c>                *get the field which will be looked for</c>
+<c>                *case distinction for promotions pieces</c>
+<l>                tuple_strlen (recString, recString_length)</l>
+<l>                if(recString_length == 10)</l>
+<c>                    </c>
+<c>                    *get the promotion piece</c>
+<l>                    tuple_substr (recString, 9, 9, promotion_piece)</l>
+<c>                </c>
+<c>                    *split the x,y,z parts in 3 images</c>
+<l>                    decompose3 (test_Image_3D, test_Image_3D_x, test_Image_3D_y, test_Image_3D_z)</l>
+<c>                    </c>
+<c>                    *create a static ROI on the left side of the chessboard and reduce the image to it</c>
+<l>                    gen_rectangle1 (ROI, 28.2047, 202.157, 636.454, 553.161)</l>
+<l>                    reduce_domain(test_Image_3D_z, ROI, test_Image_3D_z_reduced)</l>
+<c>                    </c>
+<c>                    *get the promotion piece by its z-coordinate (it is placed 3cm above the other pieces)</c>
+<l>                    threshold (test_Image_3D_z_reduced, Region_promotion_piece, 910, 930)</l>
+<c>                    </c>
+<c>                    *get the center of the promotion piece</c>
+<l>                    area_center (Region_promotion_piece, Area, promotion_piece_row_3D, promotion_piece_column_3D)</l>
+<c>         </c>
+<c>                    * generate rectangle around the coordinates and reduce the domain of the z-image of the object</c>
+<l>                    width := 30</l>
+<l>                    gen_rectangle1 (Rectangle, promotion_piece_row_3D-width, promotion_piece_column_3D-width, promotion_piece_row_3D+width, promotion_piece_column_3D+width)</l>
+<l>                    reduce_domain (test_Image_3D_z_reduced, Rectangle, test_Image_3D_z_reduced_field)</l>
+<c>                     </c>
+<c>                    * remove background</c>
+<l>                    threshold (test_Image_3D_z_reduced_field, Regions, threshold_promotion_pieces_complete_3D_min, threshold_promotion_pieces_complete_3D_max)</l>
+<l>                    reduce_domain (test_Image_3D_z_reduced_field, Regions, test_Image_3D_z_reduced_field_withoutBG)</l>
+<c>                    </c>
+<c>                    * Built the object model with the 3 sup parts</c>
+<l>                    xyz_to_object_model_3d (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z_reduced_field_withoutBG, ObjectModel3D_withoutBG)</l>
+<c>                    </c>
+<c>                    * search surface model </c>
+<l>                    find_surface_model (SurfaceModelID, ObjectModel3D_withoutBG, find_3D_model_rel_sampling_distance, find_3D_model_key_point_fraction, 0, 'true', ['num_matches', 'use_3d_edges','use_view_based'], [1, true, true], Pose, Score_surface_model, SurfaceMatchingResultID)</l>
+<c></c>
+<c>                    *define a vektor with the trans coordinates of pose and add a 1 to transform it with the transformation matrix</c>
+<l>                    pose_XYZ_camera := [Pose[0], Pose[1], Pose[2], 1]</l>
+<c>                    </c>
+<c>                    *make a matrix out of the trans coordinates of pose</c>
+<l>                    create_matrix (4, 1, pose_XYZ_camera, pose_XYZ_cameraID)</l>
+<c>                    </c>
+<c>                    *transform again to get the pose in th robot system</c>
+<l>                    mult_matrix (TransformationMatrix_camera_robot_ID, pose_XYZ_cameraID, 'AB', pose_XYZ_robot)</l>
+<c>    </c>
+<c>                    *set the 2D angle of the piece to zero</c>
+<l>                    angle_piece := 0</l>
+<c>                    </c>
+<c>                    *convert the 6-dimensional pose (3D pose_XYZ_cameraID and 3D rot coordinates of pose) to a string to send it</c>
+<l>                    tuple_string(Pose, 'f', String)</l>
+<c>                    *get the values of the pose</c>
+<l>                    get_value_matrix (pose_XYZ_robot, 0, 0, pose_X_robot)</l>
+<l>                    get_value_matrix (pose_XYZ_robot, 1, 0, pose_Y_robot)</l>
+<l>                    get_value_matrix (pose_XYZ_robot, 2, 0, pose_Z_robot)</l>
+<c>                    *convert the 3-dimensional pose to a string</c>
+<l>                    tuple_string(pose_X_robot, 'f', pose_X_robot_string)</l>
+<l>                    tuple_string(pose_Y_robot, 'f', pose_Y_robot_string)</l>
+<l>                    tuple_string(pose_Z_robot, 'f', pose_Z_robot_string)</l>
+<c>                    *put the parts together</c>
+<l>                    pose_string := pose_X_robot_string + '/' + pose_Y_robot_string + '/' + pose_Z_robot_string </l>
+<l>                    pose_string := pose_string + '/' + Pose[3] + '/' + Pose[4] + '/' + Pose[5] + '/'</l>
+<l>                    pose_string := pose_string + angle_piece + '/' + promotion_piece</l>
+<c>                    </c>
+<c>                    *send the pose back to python</c>
+<l>                    sendString := pose_string + '@pyt'</l>
+<l>                    Client_Send (sendString, Socket, To, Format, SendText)</l>
+<c>                    </c>
+<l>                else</l>
+<l>                    tuple_substr (recString, 9, 10, field)</l>
+<c>                </c>
+<c>                    *split the x,y,z parts in 3 images</c>
+<l>                    decompose3 (test_Image_3D, test_Image_3D_x, test_Image_3D_y, test_Image_3D_z)</l>
+<c>    </c>
+<c>                    *get the pose of the piece on the field</c>
+<l>                    get_piece_pose (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z, field, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, TransformationMatrix_2D_3D_ID, SurfaceModelID, threshold_working_area_min, threshold_working_area_max, threshold_pieces_complete_3D_min, threshold_pieces_complete_3D_max, find_3D_model_rel_sampling_distance, find_3D_model_key_point_fraction, Pose, coordinates_3D_X, coordinates_3D_Y)</l>
+<c>                    </c>
+<c>                    *define a vektor with the trans coordinates of pose and add a 1 to transform it with the transformation matrix</c>
+<l>                    pose_XYZ_camera := [Pose[0], Pose[1], Pose[2], 1]</l>
+<c>                    </c>
+<c>                    *make a matrix out of the trans coordinates of pose</c>
+<l>                    create_matrix (4, 1, pose_XYZ_camera, pose_XYZ_cameraID)</l>
+<c>                    </c>
+<c>                    *transform again to get the pose in th robot system</c>
+<l>                    mult_matrix (TransformationMatrix_camera_robot_ID, pose_XYZ_cameraID, 'AB', pose_XYZ_robot)</l>
+<c>    </c>
+<c>                    *get the angle of the best 2D match on the field</c>
+<l>                    get_2D_match_angle_on_field (test_Image, field, FEN_part1_new, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, shape_models, Min_Score_list, angle_piece)</l>
+<c>                    </c>
+<c>                    *convert the 6-dimensional pose (3D pose_XYZ_cameraID and 3D rot coordinates of pose) to a string to send it</c>
+<l>                    tuple_string(Pose, 'f', String)</l>
+<c>                    *get the values of the pose</c>
+<l>                    get_value_matrix (pose_XYZ_robot, 0, 0, pose_X_robot)</l>
+<l>                    get_value_matrix (pose_XYZ_robot, 1, 0, pose_Y_robot)</l>
+<l>                    get_value_matrix (pose_XYZ_robot, 2, 0, pose_Z_robot)</l>
+<c>                    *convert the 3-dimensional pose to a string</c>
+<l>                    tuple_string(pose_X_robot, 'f', pose_X_robot_string)</l>
+<l>                    tuple_string(pose_Y_robot, 'f', pose_Y_robot_string)</l>
+<l>                    tuple_string(pose_Z_robot, 'f', pose_Z_robot_string)</l>
+<c>                    *put the parts together</c>
+<l>                    pose_string := pose_X_robot_string + '/' + pose_Y_robot_string + '/' + pose_Z_robot_string </l>
+<l>                    pose_string := pose_string + '/' + Pose[3] + '/' + Pose[4] + '/' + Pose[5] + '/'</l>
+<l>                    pose_string := pose_string + angle_piece + '/nopromotion'</l>
+<c>                    </c>
+<c>                    *send the pose back to python</c>
+<l>                    sendString := pose_string + '@pyt'</l>
+<l>                    Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>                endif</l>
+<l>            endif</l>
+<l>        catch (Exception)</l>
+<l>        endtry</l>
+<c>        </c>
+<c>        *case 3)</c>
+<c>        *start with a try-block in case the received string is not long enough to be able to get a substring of this length</c>
+<l>        try</l>
+<c>            *get a substring from the received string to exclude the particular field which will be looked for (so the string consist only of "get_empty_field_pose_")</c>
+<l>            tuple_substr (recString, 0, 20, recString_get_empty_field_pose)</l>
+<c>            </c>
+<l>            if(recString_get_empty_field_pose == 'get_empty_field_pose_')</l>
+<c>                *field which will be looked for (case distinction for "out"-field and a real field like "e2")</c>
+<l>                try</l>
+<l>                    tuple_substr (recString, 21, 25, field)</l>
+<l>                catch (Exception)</l>
+<l>                    tuple_substr (recString, 21, 22, field)</l>
+<l>                endtry</l>
+<c>                </c>
+<c>                *get the coordinates of the field in the 2D image</c>
+<l>                get_field_coordinates_2D (field, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, coordinates_2D)</l>
+<c>                </c>
+<c>                *transform the coordinates with the Transformation Matrix</c>
+<l>                mult_matrix (TransformationMatrix_2D_3D_ID, coordinates_2D, 'AB', coordinates_3D)</l>
+<c>                *transform again to get the pose </c>
+<l>                mult_matrix (TransformationMatrix_coordinate_pose_ID, coordinates_3D, 'AB', pose_XY)</l>
+<c>                </c>
+<c>                *add z-component to the pose</c>
+<l>                get_value_matrix (pose_XY, 0, 0, pose_X)</l>
+<l>                get_value_matrix (pose_XY, 1, 0, pose_Y)</l>
+<l>                pose_XYZ_camera := [pose_X, pose_Y, distance_camera_pieces, 1]</l>
+<c>                </c>
+<c>                *make a matrix out of the pose</c>
+<l>                create_matrix (4, 1, pose_XYZ_camera, pose_XYZ_cameraID)</l>
+<c>                </c>
+<c>                *transform again to get the pose in th robot system</c>
+<l>                mult_matrix (TransformationMatrix_camera_robot_ID, pose_XYZ_cameraID, 'AB', pose_XYZ_robot)</l>
+<c></c>
+<c>                *get the values of the pose</c>
+<l>                get_value_matrix (pose_XYZ_robot, 0, 0, pose_X_robot)</l>
+<l>                get_value_matrix (pose_XYZ_robot, 1, 0, pose_Y_robot)</l>
+<l>                get_value_matrix (pose_XYZ_robot, 2, 0, pose_Z_robot)</l>
+<c>                </c>
+<c>                *convert the 3-dimensional pose to a string</c>
+<l>                tuple_string(pose_X_robot, 'f', pose_X_robot_string)</l>
+<l>                tuple_string(pose_Y_robot, 'f', pose_Y_robot_string)</l>
+<l>                tuple_string(pose_Z_robot, 'f', pose_Z_robot_string)</l>
+<l>                pose_string := pose_X_robot_string + '/' + pose_Y_robot_string + '/' + pose_Z_robot_string</l>
+<c>            </c>
+<c>                *send the pose to python (add out if the field is k5, so the robot does a different movement)</c>
+<l>                if(field == 'out_w' or field == 'out_b')</l>
+<l>                    sendString := pose_string + '/out' + '@pyt'</l>
+<l>                else</l>
+<l>                    sendString := pose_string + '/in' + '@pyt'</l>
+<l>                endif</l>
+<l>                Client_Send (sendString, Socket, To, Format, SendText)</l>
+<l>            endif</l>
+<l>        catch (Exception)</l>
+<l>        endtry</l>
+<c>        </c>
+<c>        *case 4)</c>
+<l>        if (recString == 'kill')</l>
+<l>            progRunning := false</l>
+<l>        endif</l>
+<l>    endif</l>
+<l>endwhile</l>
+<c></c>
+<c>*********************************************************************</c>
+<c>***************************Stop Connections**************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*stop the connection</c>
+<l>Client_Stop (Socket)</l>
+<c></c>
+<c>*close the camera</c>
+<l>close_framegrabber (AcqHandle)</l>
+<c></c>
+<c>*********************************************************************</c>
+<c>************************Clearing shape models************************</c>
+<c>*********************************************************************</c>
+<c></c>
+<c>*Release the memory of the shape models</c>
+<l>for i := 0 to (shape_models.length() - 1) by 1</l>
+<l>    clear_shape_model (shape_models.at(i))</l>
+<l>endfor</l>
+<l>for i := 0 to (shape_model_ID_board_pattern_vec.length() - 1) by 1</l>
+<l>    clear_shape_model (shape_model_ID_board_pattern_vec.at(i))</l>
+<l>endfor</l>
+<c></c>
+<c>*close the camera</c>
+<l>close_framegrabber (AcqHandle)</l>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="Client_Connect">
+<interface>
+<ic>
+<par name="ip" base_type="ctrl" dimension="0"/>
+<par name="port" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Protocol" base_type="ctrl" dimension="0"/>
+<par name="Timeout" base_type="ctrl" dimension="0"/>
+<par name="BaseProtocol" base_type="ctrl" dimension="0"/>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="recStrList" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* Initialize program</c>
+<l>Protocol := 'TCP4'</l>
+<l>Timeout := 1.0</l>
+<c>* Open a socket connection</c>
+<l>tuple_regexp_match (Protocol, 'TCP|HALCON', BaseProtocol)</l>
+<l>open_socket_connect (ip, port, ['protocol','timeout'], [Protocol,Timeout], Socket)</l>
+<l>recStrList := []</l>
+<l>To := []</l>
+<l>return ()</l>
+<c></c>
+</body>
+<docu id="Client_Connect">
+<parameters>
+<parameter id="BaseProtocol"/>
+<parameter id="Protocol"/>
+<parameter id="Socket"/>
+<parameter id="Timeout"/>
+<parameter id="To"/>
+<parameter id="ip"/>
+<parameter id="port"/>
+<parameter id="recStrList"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_images_2D_3D">
+<interface>
+<oo>
+<par name="test_Image" base_type="iconic" dimension="0"/>
+<par name="test_Image_3D" base_type="iconic" dimension="0"/>
+</oo>
+<ic>
+<par name="AcqHandle" base_type="ctrl" dimension="0"/>
+<par name="threshold_hand_min" base_type="ctrl" dimension="0"/>
+<par name="threshold_hand_max" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* try to get images till no hand is between camera and chessboard</c>
+<l>hand := true</l>
+<l>while (hand)</l>
+<l>    has_no_image := true</l>
+<l>    while(has_no_image)</l>
+<l>        try</l>
+<c>            * Get a 2D Image</c>
+<l>            grab_image_async (test_Image, AcqHandle, -1)</l>
+<c>        </c>
+<c>            * Get a 3D Image (containing three 2D images)</c>
+<l>            grab_data (test_Image_3D, Regions, Contours, AcqHandle, Data)</l>
+<c>            </c>
+<c>            *set the variable true</c>
+<l>            has_no_image := false</l>
+<l>        catch (Exception)</l>
+<l>        endtry</l>
+<l>    endwhile</l>
+<c>    </c>
+<c>    * split the x,y,z parts in 3 images</c>
+<l>    decompose3 (test_Image_3D, test_Image_3D_x, test_Image_3D_y, test_Image_3D_z)</l>
+<c></c>
+<c>    * generate a rectangle around the working are (excluding the holder for the camera)</c>
+<l>    gen_rectangle1 (ROI, 65, 320, 600, 975)</l>
+<c></c>
+<c>    * reduce the domain</c>
+<l>    reduce_domain (test_Image_3D_z, ROI, test_Image_3D_z_reduced)</l>
+<c></c>
+<c>    * Built the object model with the 3 sup parts</c>
+<l>    xyz_to_object_model_3d (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z_reduced, ObjectModel3D_hand_test)</l>
+<c></c>
+<c>    * Cut out the Background </c>
+<l>    select_points_object_model_3d (ObjectModel3D_hand_test, 'point_coord_z', threshold_hand_min, threshold_hand_max, ObjectModel3D_hand_test)</l>
+<c></c>
+<c>    * Get the number of points between chessboard and camera</c>
+<l>    get_object_model_3d_params (ObjectModel3D_hand_test, 'num_points', num_points_hand_test)</l>
+<c></c>
+<l>    if (num_points_hand_test == 0)</l>
+<l>        hand := false</l>
+<l>    endif</l>
+<l>endwhile</l>
+<l>return ()</l>
+</body>
+<docu id="get_images_2D_3D">
+<parameters>
+<parameter id="AcqHandle"/>
+<parameter id="test_Image"/>
+<parameter id="test_Image_3D"/>
+<parameter id="threshold_hand_max"/>
+<parameter id="threshold_hand_min"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Send">
+<interface>
+<ic>
+<par name="SendText" base_type="ctrl" dimension="0"/>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Format" base_type="ctrl" dimension="0"/>
+<par name="SendTextOut" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>SendTextOut := SendText</l>
+<c>* send data</c>
+<l>if (SendTextOut != [])</l>
+<c>    * correct the data format</c>
+<l>    Format := 'z'</l>
+<l>    SendTextOut := SendTextOut + '\r\n'</l>
+<c>    * send the message</c>
+<l>    send_data (Socket, Format, SendTextOut, To)</l>
+<l>endif</l>
+<l>return ()</l>
+</body>
+<docu id="Client_Send">
+<parameters>
+<parameter id="Format"/>
+<parameter id="SendText"/>
+<parameter id="SendTextOut"/>
+<parameter id="Socket"/>
+<parameter id="To"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="gen_ROI_for_every_piece">
+<interface>
+<oo>
+<par name="ROI_Match_Image_vec" base_type="iconic" dimension="1"/>
+</oo>
+</interface>
+<body>
+<l>ROI_Match_Image_vec := {}</l>
+<c></c>
+<c>* black Bishop</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(0), 83.0742, 434.921, 103.835, 457.145)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(1), 81.0563, 645.16, 102.897, 667.302)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(2), 101.844, 869.974, 123.685, 891.707)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(3), 232.042, 423.13, 257.84, 446.979)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(4), 241.373, 643.446, 266.673, 669.095)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(5), 248.224, 877.251, 273.756, 898.892)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(6), 463.329, 415.736, 490.709, 440.698)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(7), 468.164, 639.661, 495.857, 664.894)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(8), 465.797, 879.387, 492.748, 902.911)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(9), 90.0392, 448.214, 112.055, 470.924)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(10), 85.2607, 653.158, 106.933, 676.89)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(11), 113.592, 873.427, rad(86.0478), 9.87701, 10.0319)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(12), 265.332, 430.027, 290.963, 454.141)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(13), 270.013, 645.152, 295.552, 669.913)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(14), 289.201, 877.454, rad(87.8066), 11.9632, 11.1585)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(15), 454.871, 425.042, 481.711, 450.084)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(16), 461.089, 635.803, 488.06, 661.104)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(17), 467.857, 869.221, 494.828, 893.225)</l>
+<c></c>
+<c>* white Bishop</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(18), 80.9689, 435.212, 103.281, 457.547)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(19), 81.1556, 651.096, 103.744, 675.042)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(20), 113.308, 882.62, rad(-92.5897), 10.89, 11.0142)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(21), 243.018, 425.253, 268.762, 449.036)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(22), 258.257, 656.628, rad(-92.9346), 12.6827, 12.2722)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(23), 255.191, 880.28, 280.046, 901.803)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(24), 462.129, 412.938, 490.032, 438.77)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(25), 461.14, 634.164, 488.959, 660.121)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(26), 471.317, 883.679, 497.158, 906.636)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(27), 86.395, 442.281, 108.219, 465.102)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(28), 84.9933, 650.148, 106.724, 673.708)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(29), 118.038, 875.61, rad(87.0793), 10.5589, 10.5568)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(30), 270.162, 429.117, 295.699, 452.991)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(31), 289.052, 654.756, 315.762, 680.057)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(32), 301.202, 883.373, rad(87.8897), 12.5455, 11.5651)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(33), 455.473, 422.204, 482.59, 446.78)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(34), 456.404, 649.406, 483.893, 675.276)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(35), 465.024, 878.063, 492.234, 901.254)</l>
+<c></c>
+<c>* black King</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(36), 80.6316, 433.361, 102.615, 456.858)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(37), 90.0256, 665.535, rad(-92.2932), 10.9374, 11.8229)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(38), 98.5915, 870.942, 119.06, 893.689)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(39), 253.61, 418.955, 279.196, 443.047)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(40), 259.132, 646.271, 285.205, 670.975)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(41), 272.435, 881.958, 296.559, 904.705)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(42), 462.848, 408.187, 490.017, 433.992)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(43), 469.085, 654.108, 496.864, 680.157)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(44), 473.302, 882.1, 499.862, 904.847)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(45), 85.8635, 438.3, 107.966, 461.398)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(46), 85.3662, 661.082, 107.004, 684.365)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(47), 115.557, 876.629, rad(87.1988), 11.3433, 10.6804)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(48), 265.041, 424.839, 291.1, 450.011)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(49), 269.841, 646.104, 296.123, 671.049)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(50), 292.169, 889.264, rad(88.3601), 12.3356, 11.1669)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(51), 456.915, 419.771, 483.939, 445.087)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(52), 458.137, 650.11, 485.107, 675.801)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(53), 465.064, 876.988, 490.862, 900.992)</l>
+<c></c>
+<c>* white King</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(54), 81.8794, 434.409, 102.798, 456.023)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(55), 80.9306, 651.791, 102.102, 675.022)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(56), 99.2443, 871.801, 119.741, 893.075)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(57), 255.073, 422.368, 279.195, 445.356)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(58), 266.126, 648.947, 291.346, 673.88)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(59), 265.913, 885.334, 291.133, 906.948)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(60), 462.806, 413.173, 488.785, 437.425)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(61), 469.298, 640.141, 495.72, 665.982)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(62), 473.244, 881.842, 498.042, 904.052)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(63), 86.0735, 442.847, 107.433, 466.13)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(64), 87.8994, 640.412, 108.887, 663.233)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(65), 116.853, 877.785, rad(86.4099), 10.3284, 10.3683)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(66), 266.154, 426.214, 289.742, 449.866)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(67), 270.927, 647.245, 296.094, 672.191)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(68), 284.256, 876.075, 306.73, 898.064)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(69), 458.143, 417.998, 483.867, 442.02)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(70), 457.282, 647.176, 483.285, 672.214)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(71), 463.012, 874.039, 488.272, 896.675)</l>
+<c></c>
+<c>* black Knight</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(72), 84.7065, 431.129, 103.863, 451.962)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(73), 79.6843, 646.214, 99.9278, 668.849)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(74), 105.411, 871.993, 125.149, 892.671)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(75), 241.985, 419.652, 263.747, 441.861)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(76), 251.415, 654.245, 274.948, 677.731)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(77), 256.154, 879.315, 277.747, 900.844)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(78), 464.122, 410.183, 487.402, 432.903)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(79), 470.326, 647.148, 493.943, 670.719)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(80), 473.188, 881.903, 496.805, 903.942)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(81), 86.9049, 442.152, 105.757, 463.125)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(82), 85.3614, 655.48, 105.235, 677.192)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(83), 116.575, 875.208, rad(86.7768), 9.85944, 10.6605)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(84), 254.084, 429.21, 276.093, 452.123)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(85), 250.902, 655.902, 274.026, 679.092)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(86), 267.002, 875.19, 287.804, 895.885)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(87), 453.863, 421.971, 476.894, 444.885)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(88), 455.374, 650.293, 479.087, 673.778)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(89), 459.042, 876.232, 482.723, 897.852)</l>
+<c></c>
+<c>* white Knight</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(90), 83.8106, 430.84, 102.873, 453.05)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(91), 80.9906, 659.113, 100.897, 681.834)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(92), 100.802, 869.234, 120.708, 889.827)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(93), 256.368, 419.962, 278.636, 442.683)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(94), 259.579, 649.371, 283.112, 672.942)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(95), 272.457, 883.189, 295.062, 904.037)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(96), 465.748, 409.441, 489.872, 433.012)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(97), 470.183, 650.932, 494.053, 674.589)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(98), 472.075, 884.295, 494.764, 906.079)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(99), 87.7172, 447.341, 107.131, 469.269)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(100), 86.8762, 662.349, 106.159, 684.666)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(101), 113.481, 876.879, rad(88.9144), 9.75273, 10.789)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(102), 259.196, 430.29, 281.112, 453.018)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(103), 262.331, 651.166, 284.712, 674.079)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(104), 270.866, 873.331, 293.247, 893.842)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(105), 456.355, 416.973, 479.944, 440.164)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(106), 453.957, 653.043, 477.359, 676.141)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(107), 464.061, 877.897, 486.814, 899.239)</l>
+<c></c>
+<c>* black Pawn</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(108), 80.2882, 435.211, 103.568, 455.971)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(109), 78.8807, 647.236, 102.881, 668.798)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(110), 100.266, 872.948, 122.688, 892.051)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(111), 257.165, 424.44, 281.761, 442.878)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(112), 256.721, 653.187, 285.006, 675.447)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(113), 268.73, 886.261, 295.735, 905.983)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(114), 464.03, 409.38, 493.712, 431.87)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(115), 465.301, 645.532, 494.983, 667.907)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(116), 471.686, 886.326, 499.657, 906.801)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(117), 84.7061, 441.678, 106.158, 458.77)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(118), 86.3025, 653.239, 105.99, 670.055)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(119), 114.629, 876.013, rad(88.3871), 9.84774, 7.28474)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(120), 260.15, 432.026, 283.088, 449.95)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(121), 266.851, 645.457, 290.904, 663.012)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(122), 294.444, 890.105, rad(89.544), 11.6087, 8.0371)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(123), 456.912, 418.08, 481.8, 436.188)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(124), 458.359, 659.054, 483.34, 677.902)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(125), 464.401, 880.246, 488.268, 896.877)</l>
+<c></c>
+<c>* white Pawn</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(126), 82.2986, 435.659, 103.339, 453.169)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(127), 84.2625, 651.104, 104.806, 668.123)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(128), 103.093, 872.079, 123.056, 887.789)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(129), 239.625, 426.107, 262.902, 443.126)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(130), 241.762, 645.4, 266.282, 663.728)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(131), 259.064, 885.195, 280.91, 900.512)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(132), 464.172, 412.235, 489.023, 429.827)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(133), 469.984, 643.789, 494.917, 661.872)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(134), 476.127, 886.985, 500.315, 904.086)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(135), 91.4529, 445.748, 111.518, 463.264)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(136), 86.0725, 650.326, 106.856, 667.282)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(137), 114.998, 876.468, rad(88.4721), 9.89748, 8.33439)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(138), 255.796, 430.218, 278.734, 448.142)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(139), 260.259, 636.195, 284.091, 654.097)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(140), 286.02, 890.366, rad(87.386), 11.3232, 8.28945)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(141), 457.414, 420.972, 481.85, 438.788)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(142), 454.296, 652.945, 479.25, 670.761)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(143), 475.036, 888.176, rad(88.7676), 12.005, 8.20065)</l>
+<c></c>
+<c>* black Queen</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(144), 82.2581, 434.207, 103.092, 457.949)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(145), 77.7409, 648.219, 98.8279, 673.918)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(146), 102.19, 867.053, 123.108, 890.795)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(147), 252.943, 417.973, 278.079, 444.182)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(148), 252.032, 656.055, 276.071, 682.775)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(149), 272.061, 883.029, 296.185, 907.196)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(150), 464.817, 408.285, 490.121, 434.068)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(151), 468.889, 645.855, 494.868, 672.66)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(152), 474.825, 882.905, 499.623, 907.072)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(153), 85.0897, 437.925, 105.986, 461.938)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(154), 84.3022, 647.822, 104.853, 672.868)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(155), 115.801, 875.53, rad(87.2163), 10.6332, 10.749)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(156), 260.967, 426.3, 285.057, 451.948)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(157), 273.292, 657.083, 297.642, 683.85)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(158), 298.927, 890.679, rad(88.6923), 11.8382, 11.8764)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(159), 457.178, 418.065, 482.91, 443.627)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(160), 452.986, 638.838, 478.412, 665.546)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(161), 462.297, 876.069, 487.165, 900.083)</l>
+<c></c>
+<c></c>
+<c>* white Queen</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(162), 81.0635, 435.085, 102.286, 459.103)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(163), 80.6558, 646.558, 101.879, 671.485)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(164), 110.924, 883.563, rad(88.9309), 10.8174, 11.4267)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(165), 257.19, 420.115, 280.862, 445.95)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(166), 249.938, 658.988, 274.732, 686.035)</l>
+<l>*gen_rectangle1 (ROI_Match_Image_vec.at(166), 248.126, 657.998, 275.675, 686.054)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(167), 263.291, 883.169, 287.065, 907.692)</l>
+<l>*gen_rectangle1 (ROI_Match_Image_vec.at(167), 263.012, 882.966, 287.062, 907.927)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(168), 465.179, 406.294, 491.095, 432.836)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(169), 468.33, 643.277, 494.349, 670.728)</l>
+<l>*gen_rectangle1 (ROI_Match_Image_vec.at(169), 467.177, 642.424, 494.726, 670.985)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(170), 473.957, 887.21, 498.955, 911.632)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(171), 86.2414, 438.966, 106.954, 462.985)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(172), 86.9191, 649.955, 108.04, 675.892)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(173), 118.259, 876.823, rad(90.5724), 10.1018, 11.5797)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(174), 268.987, 421.186, 293.169, 446.719)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(175), 268.32, 645.146, 292.808, 671.285)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(176), 292.201, 887.867, rad(88.5472), 11.9417, 12.1375)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(177), 458.296, 414.933, 484.213, 440.97)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(178), 461.022, 653.092, 487.346, 679.936)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(179), 482.131, 889.102, rad(89.1076), 12.9598, 12.5975)</l>
+<c>* white Queen</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(162), 81.0077, 434.9, 101.852, 459.666)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(163), 80.3721, 646.042, 101.964, 672.038)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(164), 111.114, 884.05, rad(89.5809), 10.4685, 11.9789)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(165), 256.255, 420.308, 281.667, 445.894)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(166), 249.606, 658.769, 274.935, 685.749)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(167), 262.934, 883.312, 287.1, 907.833)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(168), 465.054, 406.296, 490.964, 432.867)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(169), 467.11, 642.983, 495.013, 669.963)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(170), 474.371, 886.787, 499.7, 911.8)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(171), 86.2375, 439.236, 107.22, 462.819)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(172), 87.0431, 649.963, 107.939, 675.095)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(173), 118.828, 876.821, rad(89.0935), 10.881, 11.2869)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(174), 269.027, 421.151, 293.204, 446.542)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(175), 268.442, 644.639, 292.778, 671.71)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(176), 280.11, 875.019, 303.855, 900.151)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(177), 458.622, 415.04, 483.921, 440.603)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(178), 460.971, 653.285, 487.22, 680.396)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(179), 482.097, 888.969, rad(88.0582), 12.7002, 12.1393)</l>
+<c></c>
+<c>* black Rook</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(180), 80.4805, 435.119, 101.791, 456.934)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(181), 77.9149, 643.256, 99.9767, 663.987)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(182), 104.329, 872.076, 124.821, 891.746)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(183), 265.323, 418.953, 289.529, 440.998)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(184), 267.216, 649.971, 292.001, 671.9)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(185), 270.204, 885.28, 293.919, 904.869)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(186), 465.123, 412.123, 490.14, 433.134)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(187), 467.986, 644.77, 493.105, 666.563)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(188), 473.421, 886.155, 497.879, 906.07)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(189), 85.0447, 440.09, 105.077, 460.144)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(190), 82.1325, 639.729, 101.56, 659.61)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(191), 112.377, 875.082, rad(88.9981), 10.0117, 9.29703)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(192), 258.186, 428.79, 280.827, 450.181)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(193), 265.126, 659.142, 288.008, 680.659)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(194), 291.867, 887.73, rad(89.5673), 11.3981, 9.43339)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(195), 460.338, 418.316, 483.997, 440.005)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(196), 463.192, 649.392, 486.938, 670.737)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(197), 469.228, 883.073, 494.096, 903.299)</l>
+<c></c>
+<c>* white Rook</c>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(198), 82.7891, 434.24, 103.454, 452.791)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(199), 80.14, 655.752, 101.396, 675.919)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(200), 101.169, 873.036, 122.34, 890.736)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(201), 262.248, 418.861, 284.597, 439.934)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(202), 262.981, 649.252, 286.598, 670.015)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(203), 275.394, 884.07, 299.096, 903.812)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(204), 465.851, 408.026, 491.692, 430.522)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(205), 467.829, 641.997, 494.652, 664.878)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(206), 475.291, 885.233, 499.836, 905.912)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(207), 85.4306, 439.215, 105.118, 458.838)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(208), 82.0307, 647.322, 101.113, 666.774)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(209), 112.51, 875.61, rad(89.4712), 10.0179, 9.21614)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(210), 267.108, 426.205, 289.731, 446.603)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(211), 264.489, 657.305, 286.853, 677.014)</l>
+<l>gen_rectangle2 (ROI_Match_Image_vec.at(212), 295.678, 892.538, rad(87.7527), 10.9745, 9.63771)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(213), 459.639, 417.2, 483.127, 436.536)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(214), 459.125, 644.863, 482.976, 665.891)</l>
+<l>gen_rectangle1 (ROI_Match_Image_vec.at(215), 467.431, 880.315, 490.572, 898.906)</l>
+<c></c>
+<c></c>
+<c></c>
+<l>return ()</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<l>* ROI_Match_Image_vec := {}</l>
+<c>* black Bishop</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(0), 83.0742, 434.921, 103.835, 457.145)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(1), 81.0563, 645.16, 102.897, 667.302)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(2), 101.844, 869.974, 123.685, 891.707)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(3), 232.042, 423.13, 257.84, 446.979)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(4), 241.373, 643.446, 266.673, 669.095)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(5), 248.224, 877.251, 273.756, 898.892)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(6), 463.329, 415.736, 490.709, 440.698)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(7), 468.164, 639.661, 495.857, 664.894)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(8), 465.797, 879.387, 492.748, 902.911)</l>
+<c>* white Bishop</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(9), 80.9689, 435.212, 103.281, 457.547)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(10), 81.1556, 651.096, 103.744, 675.042)</l>
+<l>* gen_rectangle2 (ROI_Match_Image_vec.at(11), 113.308, 882.62, rad(-92.5897), 10.89, 11.0142)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(12), 243.018, 425.253, 268.762, 449.036)</l>
+<l>* gen_rectangle2 (ROI_Match_Image_vec.at(13), 258.257, 656.628, rad(-92.9346), 12.6827, 12.2722)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(14), 255.191, 880.28, 280.046, 901.803)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(15), 462.129, 412.938, 490.032, 438.77)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(16), 461.14, 634.164, 488.959, 660.121)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(17), 471.317, 883.679, 497.158, 906.636)</l>
+<c>* black King</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(18), 80.6316, 433.361, 102.615, 456.858)</l>
+<l>* gen_rectangle2 (ROI_Match_Image_vec.at(19), 90.0256, 665.535, rad(-92.2932), 10.9374, 11.8229)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(20), 98.5915, 870.942, 119.06, 893.689)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(21), 253.61, 418.955, 279.196, 443.047)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(22), 259.132, 646.271, 285.205, 670.975)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(23), 272.435, 881.958, 296.559, 904.705)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(24), 462.848, 408.187, 490.017, 433.992)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(25), 469.085, 654.108, 496.864, 680.157)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(26), 473.302, 882.1, 499.862, 904.847)</l>
+<c>* white King</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(27), 81.8794, 434.409, 102.798, 456.023)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(28), 80.9306, 651.791, 102.102, 675.022)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(29), 99.2443, 871.801, 119.741, 893.075)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(30), 255.073, 422.368, 279.195, 445.356)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(31), 266.126, 648.947, 291.346, 673.88)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(32), 265.913, 885.334, 291.133, 906.948)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(33), 462.806, 413.173, 488.785, 437.425)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(34), 469.298, 640.141, 495.72, 665.982)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(35), 473.244, 881.842, 498.042, 904.052)</l>
+<c>* black Knight</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(36), 84.7065, 431.129, 103.863, 451.962)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(37), 79.6843, 646.214, 99.9278, 668.849)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(38), 105.411, 871.993, 125.149, 892.671)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(39), 241.985, 419.652, 263.747, 441.861)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(40), 251.415, 654.245, 274.948, 677.731)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(41), 256.154, 879.315, 277.747, 900.844)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(42), 464.122, 410.183, 487.402, 432.903)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(43), 470.326, 647.148, 493.943, 670.719)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(44), 473.188, 881.903, 496.805, 903.942)</l>
+<c>* white Knight</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(45), 83.8106, 430.84, 102.873, 453.05)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(46), 80.9906, 659.113, 100.897, 681.834)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(47), 100.802, 869.234, 120.708, 889.827)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(48), 256.368, 419.962, 278.636, 442.683)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(49), 259.579, 649.371, 283.112, 672.942)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(50), 272.457, 883.189, 295.062, 904.037)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(51), 465.748, 409.441, 489.872, 433.012)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(52), 470.183, 650.932, 494.053, 674.589)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(53), 472.075, 884.295, 494.764, 906.079)</l>
+<c>* black Pawn</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(54), 80.2882, 435.211, 103.568, 455.971)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(55), 78.8807, 647.236, 102.881, 668.798)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(56), 100.266, 872.948, 122.688, 892.051)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(57), 257.165, 424.44, 281.761, 442.878)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(58), 256.721, 653.187, 285.006, 675.447)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(59), 268.73, 886.261, 295.735, 905.983)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(60), 464.03, 409.38, 493.712, 431.87)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(61), 465.301, 645.532, 494.983, 667.907)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(62), 471.686, 886.326, 499.657, 906.801)</l>
+<c>* white Pawn</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(63), 82.2986, 435.659, 103.339, 453.169)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(64), 84.2625, 651.104, 104.806, 668.123)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(65), 103.093, 872.079, 123.056, 887.789)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(66), 239.625, 426.107, 262.902, 443.126)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(67), 241.762, 645.4, 266.282, 663.728)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(68), 259.064, 885.195, 280.91, 900.512)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(69), 464.172, 412.235, 489.023, 429.827)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(70), 469.984, 643.789, 494.917, 661.872)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(71), 476.127, 886.985, 500.315, 904.086)</l>
+<c>* black Queen</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(72), 82.2581, 434.207, 103.092, 457.949)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(73), 77.7409, 648.219, 98.8279, 673.918)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(74), 102.19, 867.053, 123.108, 890.795)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(75), 252.943, 417.973, 278.079, 444.182)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(76), 252.032, 656.055, 276.071, 682.775)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(77), 272.061, 883.029, 296.185, 907.196)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(78), 464.817, 408.285, 490.121, 434.068)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(79), 468.889, 645.855, 494.868, 672.66)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(80), 474.825, 882.905, 499.623, 907.072)</l>
+<c>* white Queen</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(81), 81.0077, 434.9, 101.852, 459.666)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(82), 80.3721, 646.042, 101.964, 672.038)</l>
+<l>* gen_rectangle2 (ROI_Match_Image_vec.at(83), 111.114, 884.05, rad(89.5809), 10.4685, 11.9789)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(84), 256.255, 420.308, 281.667, 445.894)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(85), 249.606, 658.769, 274.935, 685.749)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(86), 262.934, 883.312, 287.1, 907.833)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(87), 465.054, 406.296, 490.964, 432.867)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(88), 467.11, 642.983, 495.013, 669.963)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(89), 474.371, 886.787, 499.7, 911.8)</l>
+<c>* black Rook</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(90), 80.4805, 435.119, 101.791, 456.934)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(91), 77.9149, 643.256, 99.9767, 663.987)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(92), 104.329, 872.076, 124.821, 891.746)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(93), 265.323, 418.953, 289.529, 440.998)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(94), 267.216, 649.971, 292.001, 671.9)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(95), 270.204, 885.28, 293.919, 904.869)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(96), 465.123, 412.123, 490.14, 433.134)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(97), 467.986, 644.77, 493.105, 666.563)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(98), 473.421, 886.155, 497.879, 906.07)</l>
+<c>* white Rook</c>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(99), 82.7891, 434.24, 103.454, 452.791)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(100), 80.14, 655.752, 101.396, 675.919)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(101), 101.169, 873.036, 122.34, 890.736)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(102), 262.248, 418.861, 284.597, 439.934)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(103), 262.981, 649.252, 286.598, 670.015)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(104), 275.394, 884.07, 299.096, 903.812)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(105), 465.851, 408.026, 491.692, 430.522)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(106), 467.829, 641.997, 494.652, 664.878)</l>
+<l>* gen_rectangle1 (ROI_Match_Image_vec.at(107), 475.291, 885.233, 499.836, 905.912)</l>
+<c></c>
+<l>* return ()</l>
+</body>
+<docu id="gen_ROI_for_every_piece">
+<parameters>
+<parameter id="ROI_Match_Image_vec"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="gen_stretched_region_polygon_filled">
+<interface>
+<io>
+<par name="Image_new" base_type="iconic" dimension="0"/>
+</io>
+<oo>
+<par name="ROI_chessboard" base_type="iconic" dimension="0"/>
+<par name="Image_chessboard" base_type="iconic" dimension="0"/>
+</oo>
+<ic>
+<par name="Row_corner" base_type="ctrl" dimension="0"/>
+<par name="Column_corner" base_type="ctrl" dimension="0"/>
+<par name="stretch_factor" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Row_corner_stretched_new" base_type="ctrl" dimension="0"/>
+<par name="Column_corner_stretched_new" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* generate rectangle with the 4 corners and stretch it, so the whole board is covered</c>
+<c></c>
+<c>* Get the filled Region with the particular corner points</c>
+<l>gen_region_polygon_filled (ROI_chessboard_0, Row_corner, Column_corner)</l>
+<c>* Get the center of the Region and expand the corner points by the factor 'stretch_factor'</c>
+<l>area_center (ROI_chessboard_0, Area, Row_chessboard_center, Column_chessboard_center)</l>
+<l>Row_corner_stretched := Row_chessboard_center + (Row_corner - Row_chessboard_center) * stretch_factor</l>
+<l>Column_corner_stretched := Column_chessboard_center + (Column_corner - Column_chessboard_center) * stretch_factor</l>
+<c>* In case the corner points are not in the correct order the final polygon can look like a sand clock, so the order needs to be changed in this case</c>
+<l>Row_corner_stretched_new := Row_corner_stretched</l>
+<l>Column_corner_stretched_new := Column_corner_stretched</l>
+<c>* get the 3 distances between the first corner and the other 3</c>
+<l>distances := []</l>
+<l>for i := 1 to 3 by 1</l>
+<l>    distance_pp (Row_corner_stretched[0], Column_corner_stretched[0], Row_corner_stretched[i], Column_corner_stretched[i], d)</l>
+<l>    distances := [distances, d]</l>
+<l>endfor</l>
+<c>* if the corner with the highest distance from the first corner is not at the third spot, change the order correctly</c>
+<l>if (distances[0] &gt; distances[1] and distances[0] &gt; distances[2])</l>
+<l>    Row_corner_stretched_new[1] := Row_corner_stretched[2]</l>
+<l>    Row_corner_stretched_new[2] := Row_corner_stretched[1]</l>
+<l>    Column_corner_stretched_new[1] := Column_corner_stretched[2]</l>
+<l>    Column_corner_stretched_new[2] := Column_corner_stretched[1]</l>
+<l>endif</l>
+<l>if (distances[2] &gt; distances[1] and distances[2] &gt; distances[0])</l>
+<l>    Row_corner_stretched_new[3] := Row_corner_stretched[2]</l>
+<l>    Row_corner_stretched_new[2] := Row_corner_stretched[3]</l>
+<l>    Column_corner_stretched_new[3] := Column_corner_stretched[2]</l>
+<l>    Column_corner_stretched_new[2] := Column_corner_stretched[3]</l>
+<l>endif</l>
+<c>* get the Region with stretching and reordering</c>
+<l>gen_region_polygon_filled (ROI_chessboard, Row_corner_stretched_new, Column_corner_stretched_new)</l>
+<c>* reduce the domain</c>
+<l>reduce_domain (Image_new, ROI_chessboard, Image_chessboard)</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="gen_stretched_region_polygon_filled">
+<parameters>
+<parameter id="Column_corner"/>
+<parameter id="Column_corner_stretched_new"/>
+<parameter id="Image_chessboard"/>
+<parameter id="Image_new"/>
+<parameter id="ROI_chessboard"/>
+<parameter id="Row_corner"/>
+<parameter id="Row_corner_stretched_new"/>
+<parameter id="stretch_factor"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_best_scoring_indices">
+<interface>
+<ic>
+<par name="Row" base_type="ctrl" dimension="2"/>
+<par name="Column" base_type="ctrl" dimension="2"/>
+<par name="Score" base_type="ctrl" dimension="2"/>
+</ic>
+<oc>
+<par name="winner_list" base_type="ctrl" dimension="2"/>
+</oc>
+</interface>
+<body>
+<c>* winner_list contains the indices for the best matches</c>
+<l>winner_list := {{}}</l>
+<l>for p := 0 to 11 by 1</l>
+<c>    * big_list contains all indices which were already looked for (if it´s full the loop stops)</c>
+<l>    big_list := {}</l>
+<c>    * Iterate over every found match (k,l)</c>
+<l>    for k := 0 to Row.at(p).length() - 1 by 1</l>
+<l>        for l := 0 to |Row.at(p).at(k)| - 1 by 1</l>
+<c>            * Check if the indices are already in big_list</c>
+<l>            has_element := false</l>
+<l>            for m := 0 to big_list.length() - 1 by 1</l>
+<l>                if ([k,l] == big_list.at(m))</l>
+<l>                    has_element := true</l>
+<l>                endif</l>
+<l>            endfor</l>
+<c>            * If it´s a "new" element (not in big_list) compare it</c>
+<l>            if (not has_element)</l>
+<c>                * list_same contains all indices which points to the same match</c>
+<l>                list_same := {}</l>
+<l>                list_same.at(0) := [k,l]</l>
+<l>                rkl := Row.at(p).at(k)[l]</l>
+<l>                ckl := Column.at(p).at(k)[l]</l>
+<c>                * iterate through all matches (except the k´th one) for comparison</c>
+<l>                for i := 0 to 18-1 by 1</l>
+<l>                    if (i != k)</l>
+<l>                        for j := 0 to (|Row.at(p).at(i)| - 1) by 1</l>
+<l>                            rij := Row.at(p).at(i)[j]</l>
+<l>                            cij := Column.at(p).at(i)[j]</l>
+<c>                            * Calculate the distance between the (k,l)th match and the (i,j)th match</c>
+<l>                            distance_pp (rkl, ckl, rij, cij, distance)</l>
+<c>                            * Check if the distance is small enough</c>
+<l>                            if (distance &lt; 5)</l>
+<c>                                * Add the indices to list_same</c>
+<l>                                list_same.at(list_same.length()) := [i,j]</l>
+<l>                            endif</l>
+<l>                        endfor</l>
+<l>                    endif</l>
+<l>                endfor</l>
+<c></c>
+<c>                * Check the scores for every match with the indices in list_same</c>
+<l>                current_best_score := 0</l>
+<l>                for n := 0 to list_same.length() - 1 by 1</l>
+<c>                    * Get the score of the n´th element in list_same</c>
+<l>                    score_new := Score.at(p).at(list_same.at(n)[0])[list_same.at(n)[1]]</l>
+<l>                    if (score_new &gt;= current_best_score)</l>
+<c>                        * Save the best score and the best indices</c>
+<l>                        current_best_score := score_new</l>
+<l>                        current_best_indices := [list_same.at(n)[0], list_same.at(n)[1]]</l>
+<l>                    endif</l>
+<l>                endfor</l>
+<c></c>
+<c>                * Save best indices in winner_list (try/catch-Block because "winner_list.at(p).length()" does not work if it´s the first element)</c>
+<l>                try</l>
+<l>                    winner_list.at(p).at(winner_list.at(p).length()) := current_best_indices</l>
+<l>                catch (Exception)</l>
+<l>                    winner_list.at(p).at(0) := current_best_indices</l>
+<l>                endtry</l>
+<c></c>
+<c>                * Save all elements from list_same in big_list, so they are not used anymore</c>
+<l>                for n := 0 to list_same.length() - 1 by 1</l>
+<l>                    big_list.at(big_list.length()) := list_same.at(n)</l>
+<l>                endfor</l>
+<l>            endif</l>
+<l>        endfor</l>
+<l>    endfor</l>
+<l>endfor</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="get_best_scoring_indices">
+<parameters>
+<parameter id="Column"/>
+<parameter id="Row"/>
+<parameter id="Score"/>
+<parameter id="winner_list"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_coordinates_A1">
+<interface>
+<ic>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="c1" base_type="ctrl" dimension="0"/>
+<par name="r1" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* calculate A1 by simple vector calculus</c>
+<l>alpha := (cA - c1 +((r1 - rA)*(rH - rA)/(cA-cH)))/(cH - cA - ((rH - rA)*(rH - rA)/(cA - cH)))</l>
+<l>rA1 := r1 + alpha*(rH - rA)</l>
+<l>cA1 := c1 + alpha*(cH - cA)</l>
+<l>return ()</l>
+</body>
+<docu id="get_coordinates_A1">
+<parameters>
+<parameter id="c1"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="r1"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_coordinates_A_H_1">
+<interface>
+<ic>
+<par name="Row_1" base_type="ctrl" dimension="0"/>
+<par name="Column_1" base_type="ctrl" dimension="0"/>
+<par name="Row_A" base_type="ctrl" dimension="0"/>
+<par name="Column_A" base_type="ctrl" dimension="0"/>
+<par name="Row_H" base_type="ctrl" dimension="0"/>
+<par name="Column_H" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="r1" base_type="ctrl" dimension="0"/>
+<par name="c1" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>*get the coordinates of the '1' on the left side of the field</c>
+<l>tuple_sort (Column_1, Column_1_sorted)</l>
+<l>tuple_sort_index (Column_1, Column_1_indices)</l>
+<l>r1 := Row_1[Column_1_indices[0]]</l>
+<l>c1 := Column_1_sorted[0]</l>
+<c></c>
+<c>*get the coordinates of the 'A' which is on the bottom of the field</c>
+<l>tuple_sort (Row_A, Row_A_sorted)</l>
+<l>tuple_sort_index (Row_A, Row_A_indices)</l>
+<l>rA := Row_A_sorted[|Row_A_sorted| - 1]</l>
+<l>cA := Column_A[Row_A_indices[|Row_A_indices| - 1]]</l>
+<c></c>
+<c>*get the coordinates of the 'H' which is on the bottom of the field</c>
+<l>tuple_sort (Row_H, Row_H_sorted)</l>
+<l>tuple_sort_index (Row_H, Row_H_indices)</l>
+<l>rH := Row_H_sorted[|Row_H_sorted| - 1]</l>
+<l>cH := Column_H[Row_H_indices[|Row_H_indices| - 1]]</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="get_coordinates_A_H_1">
+<parameters>
+<parameter id="Column_1"/>
+<parameter id="Column_A"/>
+<parameter id="Column_H"/>
+<parameter id="Row_1"/>
+<parameter id="Row_A"/>
+<parameter id="Row_H"/>
+<parameter id="c1"/>
+<parameter id="cA"/>
+<parameter id="cH"/>
+<parameter id="r1"/>
+<parameter id="rA"/>
+<parameter id="rH"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="gen_boardConfig">
+<interface>
+<ic>
+<par name="distance_A_H" base_type="ctrl" dimension="0"/>
+<par name="Distance_Field_Avg" base_type="ctrl" dimension="0"/>
+<par name="winner_list" base_type="ctrl" dimension="2"/>
+<par name="Row" base_type="ctrl" dimension="2"/>
+<par name="Column" base_type="ctrl" dimension="2"/>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="BoardConfig" base_type="ctrl" dimension="0"/>
+<par name="FEN_part1" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* Create tuple to save the board configuration (from top left to bottom right, row by row) (0 means empty field)</c>
+<l>tuple_gen_const (64, 0, BoardConfig)</l>
+<c></c>
+<c>* Create vector with the name of the pieces in string format to assign them in the BoardConfig (alphabetic order)</c>
+<l>Piece_str := ['b', 'B', 'k', 'K', 'n', 'N', 'p', 'P', 'q', 'Q', 'r', 'R']</l>
+<c></c>
+<c>* loop over all the winners to create the boardConfig</c>
+<l>for i := 0 to winner_list.length() - 1 by 1</l>
+<l>    for j := 0 to winner_list.at(i).length() - 1 by 1</l>
+<l>        index1 := winner_list.at(i).at(j)[0]</l>
+<l>        index2 := winner_list.at(i).at(j)[1]</l>
+<l>        rNew := Row.at(i).at(index1)[index2]</l>
+<l>        cNew := Column.at(i).at(index1)[index2]</l>
+<c></c>
+<c>        * calculate the intersection point between A1 in vector_horizontal direction and NEW in negative vector_vertical direction</c>
+<l>        alpha := (cNew - cA1 - (rNew - rA1)*((cH - cA)/(rH - rA)))/(rH - rA + ((cH - cA)*(cH - cA))/(rH - rA))</l>
+<l>        rI := rNew - alpha*(cA - cH)</l>
+<l>        cI := cNew - alpha*(rH - rA)</l>
+<c></c>
+<c>        * calculate for every piece the distance between the piece and the field A1 (in row and column direction) as an integer (e.g. pawn on E2 will give row_distance=1, column_distance=4)</c>
+<l>        distance_pp (rA1, cA1, rI, cI, distance_A1_I)</l>
+<l>        distance_pp (rI, cI, rNew, cNew, distance_I_New)</l>
+<l>        distance_row := round(distance_I_New/Distance_Field_Avg)</l>
+<l>        distance_column := round(distance_A1_I/Distance_Field_Avg)</l>
+<c></c>
+<c>        * Write the particular piece in the tuple BoardConfig</c>
+<l>        BoardConfig[(7 - distance_row) * 8 + distance_column] := Piece_str[i]</l>
+<l>    endfor</l>
+<l>endfor</l>
+<c></c>
+<c></c>
+<c>* Transform the BoardConfig from a vector with 64 string entries into the "piece placement"-part (first part) of a FEN-String</c>
+<l>FEN_part1 := ''</l>
+<c>* first part is to generate a string of all the entries which are seperated every 8 chars by a slash '/'</c>
+<l>for i := 0 to 7 by 1</l>
+<l>    for j := 0 to 7 by 1</l>
+<l>        FEN_part1 := FEN_part1 + BoardConfig[8*i+j]</l>
+<l>    endfor</l>
+<c></c>
+<c>    * exclude the last slash '/'</c>
+<l>    if (i != 7)</l>
+<l>        FEN_part1 := FEN_part1 + '/'</l>
+<l>    endif</l>
+<l>endfor</l>
+<c></c>
+<c>* replaces the '0's with the amount of '0's in a row (e.g. '00000' -&gt; '5')</c>
+<l>tuple_regexp_replace (FEN_part1, ['00000000', 'replace_all'], '8', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['0000000', 'replace_all'], '7', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['000000', 'replace_all'], '6', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['00000', 'replace_all'], '5', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['0000', 'replace_all'], '4', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['000', 'replace_all'], '3', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['00', 'replace_all'], '2', FEN_part1)</l>
+<l>tuple_regexp_replace (FEN_part1, ['0', 'replace_all'], '1', FEN_part1)</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="gen_boardConfig">
+<parameters>
+<parameter id="BoardConfig"/>
+<parameter id="Column"/>
+<parameter id="Distance_Field_Avg"/>
+<parameter id="FEN_part1"/>
+<parameter id="Row"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="distance_A_H"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+<parameter id="winner_list"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="gen_indices_sequence_to_sort_matches">
+<interface>
+<ic>
+<par name="list_row" base_type="ctrl" dimension="0"/>
+<par name="list_column" base_type="ctrl" dimension="0"/>
+<par name="Angle_chessboard" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="list_indices" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>*sort all the pieces in the following order: A8 to H8, A7 to H7, A2 to H2, A1 to H1</c>
+<c></c>
+<c>*threshold parameter in rad</c>
+<l>epsilon := 0.1</l>
+<c></c>
+<c>*constant PI</c>
+<l>pi := 3.14159265</l>
+<c></c>
+<c>*define lists for all the elements that are not used (so nothing is used more than once)</c>
+<l>list_row_not_used := list_row</l>
+<l>list_column_not_used := list_column</l>
+<c></c>
+<c>*define a list to get all the indices from the same row together in blocks (first 8 indices are the indices for the row from A8 to H8 and so on)</c>
+<l>list_indices := []</l>
+<c></c>
+<c>*loop over all 4 rows</c>
+<l>for i := 0 to 3 by 1</l>
+<c>    *get a random piece in a row which was not used</c>
+<l>    r_start := list_row_not_used[0]</l>
+<l>    c_start := list_column_not_used[0]</l>
+<c>    </c>
+<c>    *define a list for the angles between the start piece and every other piece which was not looked for as well as a list for the corresponding indices of the new pieces</c>
+<l>    Angle_diff_list := []</l>
+<l>    Angle_diff_list_index := []</l>
+<c>    </c>
+<c>    *loop over all pieces</c>
+<l>    for j := 0 to |list_row| - 1 by 1</l>
+<c>    </c>
+<c>        *exclude the indices which are already in list_indices to get nothing doubled</c>
+<l>        tuple_find (list_indices, j, is_in_list_indices)</l>
+<l>        if(is_in_list_indices == -1 or is_in_list_indices == [])</l>
+<c>            </c>
+<c>            *get the row and column of the current piece</c>
+<l>            r_current := list_row[j]</l>
+<l>            c_current := list_column[j]</l>
+<c>            </c>
+<c>            *in case start and current piece are the same, add a 0 as the Angle_diff in the Angle_diff_list</c>
+<l>            if(r_current != r_start and c_current != c_start)</l>
+<c>                </c>
+<c>                *get the angle between the start and the current piece</c>
+<l>                angle_lx (r_start, c_start, r_current, c_current, Angle_current)</l>
+<c>                </c>
+<c>                *change definition set from [-pi, pi] to [0, 2pi]</c>
+<l>                if(Angle_current &lt; 0)</l>
+<l>                    Angle_current := Angle_current + 2*pi</l>
+<l>                endif</l>
+<c>                </c>
+<c>                *get the difference of the angles</c>
+<l>                tuple_abs(Angle_current - Angle_chessboard, Angle_diff)</l>
+<c>                </c>
+<c>                *change definition set from [0, 2pi] to [-pi, pi]</c>
+<l>                if(Angle_diff &gt; pi)</l>
+<l>                    tuple_abs(Angle_diff - 2*pi, Angle_diff)</l>
+<l>                endif</l>
+<c>                </c>
+<c>                *create also the angle with a 180° difference, because the piece is still in the same row, just the other direction</c>
+<l>                tuple_abs(Angle_diff - pi, Angle_diff_inv)</l>
+<c>                </c>
+<c>                *now add the Angle_diff or the inverted Angle_diff in the Angle_diff_list depending what is smaller</c>
+<l>                if(Angle_diff &lt; Angle_diff_inv)</l>
+<l>                    Angle_diff_list := [Angle_diff_list, Angle_diff]</l>
+<l>                    Angle_diff_list_index := [Angle_diff_list_index, j]</l>
+<l>                else</l>
+<l>                    Angle_diff_list := [Angle_diff_list, Angle_diff_inv]</l>
+<l>                    Angle_diff_list_index := [Angle_diff_list_index, j]</l>
+<l>                endif</l>
+<l>            else</l>
+<l>                Angle_diff_list := [Angle_diff_list, 0]</l>
+<l>                Angle_diff_list_index := [Angle_diff_list_index, j]</l>
+<l>            endif</l>
+<l>        endif</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *get the sorted index list of the Angle_diff_list</c>
+<l>    tuple_sort_index(Angle_diff_list, Angle_diff_list_sorted_index)</l>
+<c>    </c>
+<c>    *now add the indices of the pieces with the 8 smallest angles between starting and current piece</c>
+<l>    for j := 0 to 7 by 1</l>
+<l>        list_indices := [list_indices, Angle_diff_list_index[Angle_diff_list_sorted_index[j]]]</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *remove all the used indices for the next loop</c>
+<l>    tuple_remove (list_row, list_indices, list_row_not_used)</l>
+<l>    tuple_remove (list_column, list_indices, list_column_not_used)</l>
+<l>endfor</l>
+<c></c>
+<c>*in case the chessboard is about 90° or 270° rotated the following sorting algorithm takes rows over columns and vice verca</c>
+<l>if((Angle_chessboard &gt; pi/2 - epsilon and Angle_chessboard &lt; pi/2 + epsilon) or (Angle_chessboard &gt; 3*pi/2 - epsilon and Angle_chessboard &lt; 3*pi/2 + epsilon))</l>
+<c>    </c>
+<c>    *define a list for the sum of all columns in a row</c>
+<l>    list_column_sum := []</l>
+<c>    *loop over all 4 rows</c>
+<l>    for i := 0 to 3 by 1</l>
+<c>        *get a indices list of the current row</c>
+<l>        list_indices_by_row := list_indices[8*i:8*i+7]</l>
+<c>        *Sum up all the column entries of a row</c>
+<l>        column_sum := 0</l>
+<l>        for j := 0 to |list_indices_by_row| - 1 by 1</l>
+<l>            column_sum := column_sum + list_column[list_indices_by_row[j]]</l>
+<l>        endfor</l>
+<c>        *save the sum of the columns of a row in a list</c>
+<l>        list_column_sum := [list_column_sum, column_sum]</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *sort the list_column_sum by its indices</c>
+<l>    tuple_sort_index (list_column_sum, list_column_sum_sorted_index)</l>
+<c>    </c>
+<c>    *define a list for the grouped list_indices such that the first 8 entries are the 8th row, the second 8 entries are the 7th row, the third 8 entries are the 2nd row and the fourth and last 8 entries are the 1st row</c>
+<l>    list_indices_grouped := []</l>
+<l>    for i := 0 to |list_column_sum_sorted_index| - 1 by 1</l>
+<l>        list_indices_grouped := [list_indices_grouped, list_indices[8*list_column_sum_sorted_index[i] : 8*list_column_sum_sorted_index[i] + 7]]</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *define a list to also sort the pieces in a row from A to H</c>
+<l>    list_indices_sorted := []</l>
+<c>    *loop over all 4 rows</c>
+<l>    for i := 0 to 3 by 1</l>
+<c>        *get a indices list of the current row</c>
+<l>        list_indices_by_row := list_indices_grouped[8*i:8*i+7]</l>
+<c>        </c>
+<c>        *make a list for all the row entries in a row</c>
+<l>        list_row_by_row := []</l>
+<l>        for j := 0 to |list_indices_by_row| - 1 by 1</l>
+<l>            list_row_by_row := [list_row_by_row, list_row[list_indices_by_row[j]]]</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *get the sorted index list of the list_row_2D_by_row</c>
+<l>        tuple_sort_index (list_row_by_row, list_row_by_row_sorted_index)</l>
+<c>        </c>
+<c>        *append all indices in the list_indices_sorted with ascending row entries</c>
+<l>        list_indices_sorted := [list_indices_sorted, list_indices_by_row[list_row_by_row_sorted_index]]</l>
+<l>    endfor</l>
+<l>else</l>
+<c>    *define a list for the sum of all columns in a row</c>
+<l>    list_row_sum := []</l>
+<c>    *loop over all 4 rows</c>
+<l>    for i := 0 to 3 by 1</l>
+<c>        *get a indices list of the current row</c>
+<l>        list_indices_by_row := list_indices[8*i:8*i+7]</l>
+<c>        *Sum up all the row entries of a row</c>
+<l>        row_sum := 0</l>
+<l>        for j := 0 to |list_indices_by_row| - 1 by 1</l>
+<l>            row_sum := row_sum + list_row[list_indices_by_row[j]]</l>
+<l>        endfor</l>
+<c>        *save the sum of the rows of a row in a list</c>
+<l>        list_row_sum := [list_row_sum, row_sum]</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *sort the list_column_sum by its indices</c>
+<l>    tuple_sort_index (list_row_sum, list_row_sum_sorted_index)</l>
+<c>    </c>
+<c>    *define a list for the grouped list_indices such that the first 8 entries are the 8th row, the second 8 entries are the 7th row, the third 8 entries are the 2nd row and the fourth and last 8 entries are the 1st row</c>
+<l>    list_indices_grouped := []</l>
+<l>    for i := 0 to |list_row_sum_sorted_index| - 1 by 1</l>
+<l>        list_indices_grouped := [list_indices_grouped, list_indices[8*list_row_sum_sorted_index[i] : 8*list_row_sum_sorted_index[i] + 7]]</l>
+<l>    endfor</l>
+<c>    </c>
+<c>    *define a list to also sort the pieces in a row from A to H</c>
+<l>    list_indices_sorted := []</l>
+<c>    *loop over all 4 rows</c>
+<l>    for i := 0 to 3 by 1</l>
+<c>        *get a indices list of the current row</c>
+<l>        list_indices_by_row := list_indices_grouped[8*i:8*i+7]</l>
+<c>        </c>
+<c>        *make a list for all the column entries in a row</c>
+<l>        list_column_by_row := []</l>
+<l>        for j := 0 to |list_indices_by_row| - 1 by 1</l>
+<l>            list_column_by_row := [list_column_by_row, list_column[list_indices_by_row[j]]]</l>
+<l>        endfor</l>
+<c>        </c>
+<c>        *get the sorted index list of the list_column_2D_by_row</c>
+<l>        tuple_sort_index (list_column_by_row, list_column_by_row_sorted_index)</l>
+<c>        </c>
+<c>        *append all indices in the list_indices_sorted with ascending column entries</c>
+<l>        list_indices_sorted := [list_indices_sorted, list_indices_by_row[list_column_by_row_sorted_index]]</l>
+<l>    endfor</l>
+<l>endif</l>
+<c></c>
+<l>list_indices := list_indices_sorted</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="gen_indices_sequence_to_sort_matches">
+<parameters>
+<parameter id="Angle_chessboard"/>
+<parameter id="list_column"/>
+<parameter id="list_indices"/>
+<parameter id="list_row"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_field_coordinates_2D">
+<interface>
+<ic>
+<par name="field" base_type="ctrl" dimension="0"/>
+<par name="Distance_Field_Avg" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="coordinates_2D" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* get the norm of the vector A-&gt;H</c>
+<l>create_matrix (2, 1, [rH-rA, cH-cA], vector_horizontal)</l>
+<c>* calculate the 2-norm of the vector</c>
+<l>norm_matrix (vector_horizontal, '2-norm', vector_norm)</l>
+<c></c>
+<c>* convert the field to numbers (e.g. a,...,h -&gt; 0,...,7 / 1,...8 -&gt; 0,...,7)</c>
+<l>get_field_converted (field, field_letter_converted, field_number_converted)</l>
+<c></c>
+<c>* calculate the field using simple vector calculus</c>
+<l>x := rA1 + Distance_Field_Avg*field_letter_converted*(rH - rA)/vector_norm + Distance_Field_Avg*field_number_converted*(cA - cH)/vector_norm</l>
+<l>y := cA1 + Distance_Field_Avg*field_letter_converted*(cH - cA)/vector_norm + Distance_Field_Avg*field_number_converted*(rH - rA)/vector_norm</l>
+<c></c>
+<c>* create the matrix (to transform it later)</c>
+<l>create_matrix (3, 1, [x, y, 1], coordinates_2D)</l>
+<l>return ()</l>
+</body>
+<docu id="get_field_coordinates_2D">
+<parameters>
+<parameter id="Distance_Field_Avg"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="coordinates_2D"/>
+<parameter id="field"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_piece_pose">
+<interface>
+<io>
+<par name="test_Image_3D_x" base_type="iconic" dimension="0"/>
+<par name="test_Image_3D_y" base_type="iconic" dimension="0"/>
+<par name="test_Image_3D_z" base_type="iconic" dimension="0"/>
+</io>
+<ic>
+<par name="field" base_type="ctrl" dimension="0"/>
+<par name="Distance_Field_Avg" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+<par name="TransformationMatrix_2D_3D_ID" base_type="ctrl" dimension="0"/>
+<par name="SurfaceModelID" base_type="ctrl" dimension="0"/>
+<par name="threshold_working_area_min" base_type="ctrl" dimension="0"/>
+<par name="threshold_working_area_max" base_type="ctrl" dimension="0"/>
+<par name="threshold_pieces_complete_3D_min" base_type="ctrl" dimension="0"/>
+<par name="threshold_pieces_complete_3D_max" base_type="ctrl" dimension="0"/>
+<par name="find_3D_model_rel_sampling_distance" base_type="ctrl" dimension="0"/>
+<par name="find_3D_model_key_point_fraction" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Pose" base_type="ctrl" dimension="0"/>
+<par name="coordinates_3D_X" base_type="ctrl" dimension="0"/>
+<par name="coordinates_3D_Y" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* get the coordinates of the field in the 2D image</c>
+<l>get_field_coordinates_2D (field, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, coordinates_2D)</l>
+<c></c>
+<c>* Transform the coordinates with the Transformation Matrix</c>
+<l>mult_matrix (TransformationMatrix_2D_3D_ID, coordinates_2D, 'AB', coordinates_3D)</l>
+<c></c>
+<c>* generate rectangle around the coordinates and reduce the domain of the z-image of the object</c>
+<l>width := 30</l>
+<l>get_value_matrix (coordinates_3D, 0, 0, coordinates_3D_X)</l>
+<l>get_value_matrix (coordinates_3D, 1, 0, coordinates_3D_Y)</l>
+<l>gen_rectangle1 (Rectangle, coordinates_3D_X-width, coordinates_3D_Y-width, coordinates_3D_X+width, coordinates_3D_Y+width)</l>
+<l>reduce_domain (test_Image_3D_z, Rectangle, test_Image_3D_z_reduced_field)</l>
+<c></c>
+<c>* create object model with background</c>
+<l>xyz_to_object_model_3d (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z_reduced_field, ObjectModel3D_withBG)</l>
+<l>select_points_object_model_3d (ObjectModel3D_withBG, 'point_coord_z', threshold_working_area_min, threshold_working_area_max, ObjectModel3D_withBG)</l>
+<c></c>
+<c>* remove background</c>
+<l>threshold (test_Image_3D_z_reduced_field, Regions, threshold_pieces_complete_3D_min, threshold_pieces_complete_3D_max)</l>
+<l>reduce_domain (test_Image_3D_z_reduced_field, Regions, test_Image_3D_z_reduced_field_withoutBG)</l>
+<c></c>
+<c>* Built the object model with the 3 sup parts</c>
+<l>xyz_to_object_model_3d (test_Image_3D_x, test_Image_3D_y, test_Image_3D_z_reduced_field_withoutBG, ObjectModel3D_withoutBG)</l>
+<c></c>
+<c>* search surface model </c>
+<l>find_surface_model (SurfaceModelID, ObjectModel3D_withoutBG, find_3D_model_rel_sampling_distance, find_3D_model_key_point_fraction, 0, 'true', ['num_matches', 'use_3d_edges','use_view_based'], [1, true, true], Pose, Score_surface_model, SurfaceMatchingResultID)</l>
+<l>return ()</l>
+</body>
+<docu id="get_piece_pose">
+<parameters>
+<parameter id="Distance_Field_Avg"/>
+<parameter id="Pose"/>
+<parameter id="SurfaceModelID"/>
+<parameter id="TransformationMatrix_2D_3D_ID"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="coordinates_3D_X"/>
+<parameter id="coordinates_3D_Y"/>
+<parameter id="field"/>
+<parameter id="find_3D_model_key_point_fraction"/>
+<parameter id="find_3D_model_rel_sampling_distance"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+<parameter id="test_Image_3D_x"/>
+<parameter id="test_Image_3D_y"/>
+<parameter id="test_Image_3D_z"/>
+<parameter id="threshold_pieces_complete_3D_max"/>
+<parameter id="threshold_pieces_complete_3D_min"/>
+<parameter id="threshold_working_area_max"/>
+<parameter id="threshold_working_area_min"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Stop">
+<interface>
+<ic>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* stop the client</c>
+<l>close_socket (Socket)</l>
+<l>return ()</l>
+</body>
+<docu id="Client_Stop">
+<parameters>
+<parameter id="Socket"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Client_Receive">
+<interface>
+<ic>
+<par name="Socket" base_type="ctrl" dimension="0"/>
+<par name="recStrList_in" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="recStrList" base_type="ctrl" dimension="0"/>
+<par name="recStr" base_type="ctrl" dimension="0"/>
+<par name="hasRecString" base_type="ctrl" dimension="0"/>
+<par name="From" base_type="ctrl" dimension="0"/>
+<par name="To" base_type="ctrl" dimension="0"/>
+<par name="Exception" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>*receive data</c>
+<l>hasRecString := false</l>
+<l>splitStr := '\r\n'</l>
+<l>recStrList := recStrList_in</l>
+<c></c>
+<c>* try to receive a message</c>
+<l>try</l>
+<l>    receive_data (Socket, 'z', newRecStr, From)</l>
+<c>    * form the message that it can be used</c>
+<l>    To := [From[0],From[1]]</l>
+<l>    tuple_split (newRecStr, splitStr, newRecList)</l>
+<c>    </c>
+<l>    tuple_concat (recStrList, newRecList, recStrList)</l>
+<l>    recStr := recStrList[0]</l>
+<l>    tuple_remove(recStrList,0,recStrList)</l>
+<c>    </c>
+<l>    if(strlen(recStr) &gt; 0 )</l>
+<l>        hasRecString := true</l>
+<l>    endif</l>
+<c></c>
+<l>catch (Exception)</l>
+<l>endtry</l>
+<l>return ()</l>
+<c></c>
+</body>
+<docu id="Client_Receive">
+<parameters>
+<parameter id="Exception"/>
+<parameter id="From"/>
+<parameter id="Socket"/>
+<parameter id="To"/>
+<parameter id="hasRecString"/>
+<parameter id="recStr"/>
+<parameter id="recStrList"/>
+<parameter id="recStrList_in"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_field_converted">
+<interface>
+<ic>
+<par name="field" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="field_letter_converted" base_type="ctrl" dimension="0"/>
+<par name="field_number_converted" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>*convert the field to integers (e.g. 'e2' -&gt; 4 and 1) </c>
+<c>*in case it´s an out field make the place dependent of the color of the player, so the "out"-field is always on the right side of the chessboard in view of the user</c>
+<c></c>
+<l>if(field == 'out_w')</l>
+<l>    field_letter_converted := 10</l>
+<l>    field_number_converted := 4</l>
+<l>elseif(field == 'out_b')</l>
+<l>    field_letter_converted := -3</l>
+<l>    field_number_converted := 3</l>
+<l>else</l>
+<c>    * seperate the letter and number of the field (e.g. 'e2' -&gt; 'e' and '2')</c>
+<l>    tuple_substr (field, 0, 0, field_letter)</l>
+<l>    tuple_substr (field, 1, 1, field_number)</l>
+<c>    </c>
+<c>    * convert field in steps relative to A1, e.g. ...</c>
+<c>    * ... field_letter = a,...,h -&gt; field_letter_converted = 0,...,7</c>
+<c>    * ... field_number = 1,...,8 -&gt; field_number_converted = 0,...,7</c>
+<l>    tuple_ord (field_letter, Ord)</l>
+<l>    tuple_chrt (Ord-49, Chrt)</l>
+<l>    tuple_number (Chrt, field_letter_converted)</l>
+<l>    tuple_number (field_number, Number)</l>
+<l>    field_number_converted := Number - 1</l>
+<l>endif</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="get_field_converted">
+<parameters>
+<parameter id="field"/>
+<parameter id="field_letter_converted"/>
+<parameter id="field_number_converted"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_2D_match_angle_on_field">
+<interface>
+<io>
+<par name="test_Image" base_type="iconic" dimension="0"/>
+</io>
+<ic>
+<par name="field" base_type="ctrl" dimension="0"/>
+<par name="FEN_part1_new" base_type="ctrl" dimension="0"/>
+<par name="Distance_Field_Avg" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+<par name="shape_models" base_type="ctrl" dimension="1"/>
+<par name="Min_Score_list" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="angle_piece" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* check which piece is on the field</c>
+<c>* convert the field to numbers (e.g. a,...,h -&gt; 0,...,7 / 1,...8 -&gt; 0,...,7)</c>
+<l>get_field_converted (field, field_letter_converted, field_number_converted)</l>
+<c></c>
+<c>* split the FEN to get a particular row</c>
+<l>tuple_split (FEN_part1_new, '/', FEN_part1_new_split)</l>
+<l>row_chessboard := FEN_part1_new_split[7 - field_number_converted]</l>
+<c></c>
+<c>* replace all empty fields with the amount of '0's to fill it up</c>
+<l>tuple_regexp_replace (row_chessboard, ['1', 'replace_all'], '0', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['2', 'replace_all'], '00', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['3', 'replace_all'], '000', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['4', 'replace_all'], '0000', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['5', 'replace_all'], '00000', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['6', 'replace_all'], '000000', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['7', 'replace_all'], '0000000', row_chessboard)</l>
+<l>tuple_regexp_replace (row_chessboard, ['8', 'replace_all'], '00000000', row_chessboard)</l>
+<c></c>
+<c>* get the name of the piece on the field</c>
+<l>tuple_substr (row_chessboard, field_letter_converted, field_letter_converted, piece)</l>
+<c></c>
+<c>* get the coordinates of the field in the 2D image</c>
+<l>get_field_coordinates_2D (field, Distance_Field_Avg, rH, rA, cA, cH, rA1, cA1, coordinates_2D)</l>
+<c>                </c>
+<c>* generate rectangle around the coordinates and reduce the domain of the image</c>
+<l>width := 35</l>
+<l>get_value_matrix (coordinates_2D, 0, 0, coordinates_2D_X)</l>
+<l>get_value_matrix (coordinates_2D, 1, 0, coordinates_2D_Y)</l>
+<l>gen_rectangle1 (Rectangle, coordinates_2D_X - width, coordinates_2D_Y - width, coordinates_2D_X + width, coordinates_2D_Y + width)</l>
+<l>reduce_domain (test_Image, Rectangle, test_Image_reduced_field)</l>
+<c></c>
+<c>* get the correct shape models</c>
+<l>piece_list := ['b', 'B', 'k', 'K', 'n', 'N', 'p', 'P', 'q', 'Q', 'r', 'R']</l>
+<c></c>
+<l>tuple_find (piece_list, piece, piece_index)</l>
+<c></c>
+<c>* search piece in test_Image_reduced_field and store them in a list</c>
+<l>score_list_piece := []</l>
+<l>for i := 0 to 18-1 by 1</l>
+<l>    find_shape_model (test_Image_reduced_field, shape_models.at(piece_index * 18 + i), 0, rad(360), Min_Score_list[piece_index], 1, 0, 'interpolation', 0, 0.9, Row_piece.at(i), Column_piece.at(i), Angle_piece.at(i), Score_piece.at(i))</l>
+<c></c>
+<c>    * store the score values in a list to get the index of the match with the higheset score to use it to get the angle</c>
+<l>    try</l>
+<l>        score_list_piece := [score_list_piece, Score_piece.at(i)[0]]</l>
+<l>    catch (Exception)</l>
+<l>        score_list_piece := [score_list_piece, 0]</l>
+<l>    endtry</l>
+<l>endfor</l>
+<c></c>
+<c>* get the maximum value in the list</c>
+<l>tuple_max (score_list_piece, score_list_piece_max)</l>
+<c>* get the index of the maximum value in the list</c>
+<l>tuple_find (score_list_piece, score_list_piece_max, score_list_piece_max_index)</l>
+<c>* get the angle of the match with the maximum value in the list</c>
+<l>angle_piece := Angle_piece.at(score_list_piece_max_index)</l>
+<l>return ()</l>
+</body>
+<docu id="get_2D_match_angle_on_field">
+<parameters>
+<parameter id="Distance_Field_Avg"/>
+<parameter id="FEN_part1_new"/>
+<parameter id="Min_Score_list"/>
+<parameter id="angle_piece"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="field"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+<parameter id="shape_models"/>
+<parameter id="test_Image"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_field_coordinates_2D_COPY_1">
+<interface>
+<ic>
+<par name="field" base_type="ctrl" dimension="0"/>
+<par name="Distance_Field_Avg" base_type="ctrl" dimension="0"/>
+<par name="rH" base_type="ctrl" dimension="0"/>
+<par name="rA" base_type="ctrl" dimension="0"/>
+<par name="cA" base_type="ctrl" dimension="0"/>
+<par name="cH" base_type="ctrl" dimension="0"/>
+<par name="rA1" base_type="ctrl" dimension="0"/>
+<par name="cA1" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="coordinates_2D" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* get the norm of the vector A-&gt;H</c>
+<l>create_matrix (2, 1, [rH-rA, cH-cA], vector_horizontal)</l>
+<c>* calculate the 2-norm of the vector</c>
+<l>norm_matrix (vector_horizontal, '2-norm', vector_norm)</l>
+<c></c>
+<c>* convert the field to numbers (e.g. a,...,h -&gt; 0,...,7 / 1,...8 -&gt; 0,...,7)</c>
+<l>get_field_converted (field, field_letter_converted, field_number_converted)</l>
+<c></c>
+<c>* calculate the field using simple vector calculus</c>
+<l>x := rA1 + Distance_Field_Avg*field_letter_converted*(rH - rA)/vector_norm + Distance_Field_Avg*field_number_converted*(cA - cH)/vector_norm</l>
+<l>y := cA1 + Distance_Field_Avg*field_letter_converted*(cH - cA)/vector_norm + Distance_Field_Avg*field_number_converted*(rH - rA)/vector_norm</l>
+<c></c>
+<c>* create the matrix (to transform it later)</c>
+<l>create_matrix (3, 1, [x, y, 1], coordinates_2D)</l>
+<l>return ()</l>
+</body>
+<docu id="get_field_coordinates_2D_COPY_1">
+<parameters>
+<parameter id="Distance_Field_Avg"/>
+<parameter id="cA"/>
+<parameter id="cA1"/>
+<parameter id="cH"/>
+<parameter id="coordinates_2D"/>
+<parameter id="field"/>
+<parameter id="rA"/>
+<parameter id="rA1"/>
+<parameter id="rH"/>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>
